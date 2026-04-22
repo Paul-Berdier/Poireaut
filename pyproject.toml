@@ -63,6 +63,7 @@ packages = ["src/osint_core"]
 "src/osint_core/app/ui/styles.css" = "osint_core/app/ui/styles.css"
 "src/osint_core/app/ui/app.js" = "osint_core/app/ui/app.js"
 "src/osint_core/app/assets/icon.png" = "osint_core/app/assets/icon.png"
+"src/osint_core/app/assets/icon.ico" = "osint_core/app/assets/icon.ico"
 "src/osint_core/app/assets/logo.png" = "osint_core/app/assets/logo.png"
 
 [tool.ruff]

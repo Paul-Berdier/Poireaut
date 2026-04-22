@@ -16,12 +16,26 @@ def _ui_html_path() -> str:
 
 
 def _icon_path() -> str | None:
-    """Return filesystem path to the app icon, or None if unavailable."""
-    try:
-        p = resources.files("osint_core.app.assets").joinpath("icon.png")
-        return str(p) if Path(str(p)).is_file() else None
-    except Exception:
-        return None
+    """Return filesystem path to the app icon best suited for this OS.
+
+    Windows requires a real .ico file (System.Drawing.Icon refuses PNG).
+    macOS & Linux are happy with PNG. If nothing suitable is found, we
+    return None and the window uses pywebview's default icon.
+    """
+    candidates: list[str] = []
+    if sys.platform == "win32":
+        candidates = ["icon.ico", "icon.png"]
+    else:
+        candidates = ["icon.png", "icon.ico"]
+
+    for name in candidates:
+        try:
+            p = resources.files("osint_core.app.assets").joinpath(name)
+            if Path(str(p)).is_file():
+                return str(p)
+        except Exception:
+            continue
+    return None
 
 
 def main() -> int:
@@ -46,7 +60,7 @@ def main() -> int:
     api = PoireautApi()
     icon = _icon_path()
 
-    window = webview.create_window(
+    webview.create_window(
         title="Poireaut · Outil OSINT",
         url=_ui_html_path(),
         js_api=api,
@@ -58,15 +72,39 @@ def main() -> int:
         text_select=True,
     )
 
-    kwargs: dict = {"debug": False}
+    # Try with the icon first; if anything about it fails (wrong format,
+    # .NET complaining on Windows, old pywebview without `icon` kwarg),
+    # retry without it — the window matters more than the icon.
+    attempts: list[dict] = []
     if icon is not None:
-        kwargs["icon"] = icon
+        attempts.append({"debug": False, "icon": icon})
+    attempts.append({"debug": False})
 
-    try:
-        webview.start(**kwargs)
-    except TypeError:
-        # Older pywebview versions don't accept `icon`
-        webview.start(debug=False)
+    last_exc: Exception | None = None
+    for kwargs in attempts:
+        try:
+            webview.start(**kwargs)
+            return 0
+        except TypeError as exc:
+            # `icon` not supported by this pywebview version
+            last_exc = exc
+            continue
+        except Exception as exc:
+            # Icon file rejected by the OS (e.g. Windows .NET wanting .ico),
+            # or any other init error — retry without icon.
+            last_exc = exc
+            msg = str(exc)
+            if "Icon" in msg or "picture" in msg or "icon" in kwargs:
+                logging.warning(
+                    "Échec d'initialisation avec l'icône (%s). "
+                    "Relance sans icône.",
+                    exc.__class__.__name__,
+                )
+                continue
+            raise
+
+    if last_exc is not None:
+        raise last_exc
     return 0
 
 
