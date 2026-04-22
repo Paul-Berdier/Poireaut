@@ -1,7 +1,12 @@
-# osint-core
+# osint-core · Poireaut
 
 Modular OSINT investigation toolkit with a publish/subscribe collector
 architecture, ready to be extended with AI-powered correlation.
+
+Ships with two frontends:
+
+- **`osint`** — the CLI (pipe-friendly, scriptable)
+- **`poireaut`** — the desktop app (pywebview, Belle Époque detective theme)
 
 > **⚠️ Éthique & Légalité**
 > Cet outil est destiné à l'apprentissage, à la recherche en sécurité défensive,
@@ -114,6 +119,27 @@ osint investigate alice --maigret --enrich --graph alice.html
 osint graph alice_report.json -o alice.html
 ```
 
+## 🔍 Poireaut — l'application desktop
+
+Interface graphique basée sur pywebview avec identité Belle Époque
+(vert poireau, or laiton, Fraunces italique) qui embarque tous les
+collecteurs et le viewer graphe dans une seule fenêtre.
+
+```bash
+pip install -e ".[app]"
+poireaut
+```
+
+Fonctionnalités :
+- **Accueil** — présentation + accès rapide à une nouvelle enquête
+- **Enquête** — formulaire (pseudo/email), options (Maigret, enrichissement,
+  Holehe), console live avec chips de comptage par type d'entité
+- **Toile** — le viewer graphe interactif Cytoscape embedded
+- **À propos** — stack technique et notes éthiques
+
+Détection automatique des extras installés (Maigret / Vision / Holehe)
+et désactivation visuelle des options correspondantes si l'extra manque.
+
 Le viewer généré embarque toutes les données (aucun serveur requis), affiche :
 - **Graphe interactif** Cytoscape.js avec layouts organique / radial / hiérarchique
 - **Filtres par type** d'entité cliquables
@@ -186,8 +212,10 @@ produces `email` entities.
 ## Extras optionnels
 
 ```bash
-pip install -e ".[vision]"       # imagehash + Pillow pour avatars
+pip install -e ".[app]"          # pywebview — application desktop Poireaut
+pip install -e ".[vision]"       # imagehash + Pillow — avatars
 pip install -e ".[maigret]"      # Maigret réel (3000+ sites)
+pip install -e ".[email-lookup]" # Holehe — ⚠ probes agressifs
 pip install -e ".[dev]"          # tests + linters
 ```
 

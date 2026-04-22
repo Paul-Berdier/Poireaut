@@ -35,6 +35,8 @@ vision = ["imagehash>=4.3", "Pillow>=10.0"]
 # Email lookup: Holehe for email → registered accounts discovery.
 # WARNING: probes 120+ services with real password-reset HTTP requests.
 email-lookup = ["holehe>=1.61"]
+# Desktop GUI (Poireaut)
+app = ["pywebview>=5.0"]
 # Future: graph/ai extras
 graph = ["networkx>=3.2", "pyvis>=0.3"]
 ai = ["sentence-transformers>=3.0", "Pillow>=10.0"]
@@ -50,12 +52,18 @@ dev = [
 
 [project.scripts]
 osint = "osint_core.cli:app"
+poireaut = "osint_core.app.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/osint_core"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/osint_core/visualization/template.html" = "osint_core/visualization/template.html"
+"src/osint_core/app/ui/index.html" = "osint_core/app/ui/index.html"
+"src/osint_core/app/ui/styles.css" = "osint_core/app/ui/styles.css"
+"src/osint_core/app/ui/app.js" = "osint_core/app/ui/app.js"
+"src/osint_core/app/assets/icon.png" = "osint_core/app/assets/icon.png"
+"src/osint_core/app/assets/logo.png" = "osint_core/app/assets/logo.png"
 
 [tool.ruff]
 line-length = 100
