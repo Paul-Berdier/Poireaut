@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "osint-core"
+version = "0.1.0"
+description = "Modular OSINT investigation toolkit with pluggable collectors and AI-ready correlation."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "You" }]
+license = { text = "MIT" }
+keywords = ["osint", "intelligence", "investigation", "security"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+dependencies = [
+    "pydantic>=2.5",
+    "typer>=0.12",
+    "rich>=13.7",
+    "httpx>=0.27",
+    "structlog>=24.1",
+]
+
+[project.optional-dependencies]
+# Optional: the real Maigret integration. Keeps the core lean.
+maigret = ["maigret>=0.5.0"]
+# Vision: perceptual hashing of avatars/images
+vision = ["imagehash>=4.3", "Pillow>=10.0"]
+# Email lookup: Holehe for email → registered accounts discovery.
+# WARNING: probes 120+ services with real password-reset HTTP requests.
+email-lookup = ["holehe>=1.61"]
+# Future: graph/ai extras
+graph = ["networkx>=3.2", "pyvis>=0.3"]
+ai = ["sentence-transformers>=3.0", "Pillow>=10.0"]
+# Dev tooling
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "imagehash>=4.3",
+    "Pillow>=10.0",
+]
+
+[project.scripts]
+osint = "osint_core.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/osint_core"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/osint_core/visualization/template.html" = "osint_core/visualization/template.html"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
