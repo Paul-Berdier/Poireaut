@@ -1,247 +1,83 @@
-# osint-core · Poireaut
+# 🕵️‍♂️ Poireaut — Outil OSINT
 
-Modular OSINT investigation toolkit with a publish/subscribe collector
-architecture, ready to be extended with AI-powered correlation.
+> Investigation open-source par pivots successifs.
+> Mr. Poireaut enquête, vous validez, la toile se tisse.
 
-Ships with two frontends:
+---
 
-- **`osint`** — the CLI (pipe-friendly, scriptable)
-- **`poireaut`** — the desktop app (pywebview, Belle Époque detective theme)
+## Stack
 
-> **⚠️ Éthique & Légalité**
-> Cet outil est destiné à l'apprentissage, à la recherche en sécurité défensive,
-> à la protection de votre propre empreinte numérique, et aux investigations
-> autorisées (journalisme, OSINT éthique type TraceLabs). Respectez le RGPD,
-> les conditions d'utilisation des plateformes, et ne l'utilisez **jamais**
-> pour harceler, doxer, ou cibler des individus sans consentement ou mandat
-> légitime.
+| Couche            | Techno                                      |
+| ----------------- | ------------------------------------------- |
+| **Backend API**   | FastAPI (Python 3.11) + Pydantic v2         |
+| **Worker**        | Celery + Redis                              |
+| **Database**      | PostgreSQL 16                               |
+| **Cache / Queue** | Redis 7                                     |
+| **Frontend**      | React 18 + Vite + TypeScript                |
+| **Graphe**        | React Flow (ajouté à l'étape 4)             |
+| **Déploiement**   | Railway (services séparés, Dockerfile each) |
 
-## Pourquoi un énième outil OSINT ?
-
-Les outils existants (SpiderFoot, Sherlock, Maigret, Recon-ng…) sont soit
-abandonnés, soit trop monolithiques, soit purement déterministes — aucun
-n'intègre de raisonnement IA. Ce projet vise à :
-
-1. Orchestrer les meilleures libs OSINT existantes derrière **un modèle
-   d'entités unifié**
-2. Fournir un **bus pub/sub async** où chaque collecteur est un plugin
-3. Poser les bases d'une **couche de corrélation ML** (embeddings,
-   stylométrie, reverse image search, synthèse LLM)
-
-## Architecture en un coup d'œil
+## Structure du monorepo
 
 ```
-        ┌──────────────────────────────────────┐
-        │ CLI / API (typer, fastapi plus tard) │
-        └────────────────┬─────────────────────┘
-                         │ seed entity (username, email…)
-                         ▼
-                ┌────────────────┐
-                │   EventBus     │  ←─────┐
-                │  (pub/sub)     │        │ emit()
-                └────┬────┬──────┘        │
-                     │    │               │
-              ┌──────┘    └───────┐       │
-              ▼                   ▼       │
-    ┌──────────────────┐  ┌───────────────┴─────┐
-    │ MaigretCollector │  │ (future collectors) │
-    │  consumes: user  │  │  EXIF, email, IP... │
-    │  produces: acct  │  └─────────────────────┘
-    └──────────────────┘
-              │ merged entities
-              ▼
-        ┌──────────────┐
-        │ GraphStore   │  → report (JSON, graph viz, PDF)
-        └──────────────┘
+poireaut/
+├── apps/
+│   ├── api/        FastAPI — expose REST + WebSocket
+│   ├── worker/     Celery — exécute les connecteurs OSINT
+│   └── web/        React — UI investigateur + toile d'araignée
+├── docs/
+│   └── ARCHITECTURE.md
+├── docker-compose.yml
+├── .env.example
+└── README.md
 ```
 
-Clés du design :
+Chaque app est **indépendante** : son propre `Dockerfile`, ses propres deps, son propre service Railway.
 
-- **Entity** = nœud du graphe d'investigation. Chaque entité porte une liste
-  d'`Evidence` (provenance, source, confiance) — on ne stocke jamais un fait
-  sans sa source.
-- **dedup_key** : deux entités trouvées par deux collecteurs différents mais
-  qui désignent la même chose du monde réel sont fusionnées automatiquement.
-- **Collector** : un plugin déclaratif. Il annonce `consumes` et `produces`,
-  et le bus fait le câblage tout seul.
-- **Chaînage automatique** : si un collecteur `A` produit des `email`, et
-  qu'un collecteur `B` consomme des `email`, la sortie de `A` devient
-  l'entrée de `B` sans code supplémentaire.
+## Démarrer en local
 
-## Installation
-
-Python 3.11+ requis.
+Prérequis : Docker + Docker Compose.
 
 ```bash
-git clone <ton-repo>/osint-core.git
-cd osint-core
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"            # mode dev avec tests
-pip install -e ".[maigret]"        # + intégration Maigret réelle
+# 1. Cloner et copier les variables d'env
+cp .env.example .env
+
+# 2. Lancer toute la stack (postgres + redis + api + worker + web)
+docker compose up --build
+
+# 3. Ouvrir
+#   Frontend : http://localhost:5173
+#   API docs : http://localhost:8000/docs
+#   Health   : http://localhost:8000/health
 ```
 
-## Utilisation
+Pour arrêter : `docker compose down`. Pour repartir de zéro (efface la DB) : `docker compose down -v`.
 
-**Mode démo** (sans dépendance externe, données factices) :
-```bash
-osint investigate alice
-```
+## Déploiement Railway
 
-**Avec enrichment** (fetch GitHub/GitLab/Gravatar APIs, extrait emails/URLs/localisations depuis les bios, hash perceptuels des avatars, résolution domain pour chaque email) :
-```bash
-osint investigate alice --enrich
-osint investigate alice --maigret --enrich -o report.json
-```
+Sur Railway, créer **un service par app** en pointant chacun vers son dossier :
 
-**Avec Holehe** (⚠️ envoie des requêtes password-reset à 120+ sites pour chaque email) :
-```bash
-pip install -e ".[email-lookup]"
-osint investigate alice --maigret --enrich --holehe
-```
+| Service Railway   | Root directory   | Type           |
+| ----------------- | ---------------- | -------------- |
+| `poireaut-api`    | `apps/api`       | Dockerfile     |
+| `poireaut-worker` | `apps/worker`    | Dockerfile     |
+| `poireaut-web`    | `apps/web`       | Dockerfile     |
+| `poireaut-db`     | —                | Postgres addon |
+| `poireaut-redis`  | —                | Redis addon    |
 
-Pour contourner le rate limit GitHub (60 req/h), exporte un token :
-```bash
-export GITHUB_TOKEN=ghp_xxx
-```
+Railway injectera automatiquement `DATABASE_URL` et `REDIS_URL` si vous "reliez" les addons aux services applicatifs.
 
-**Mode Maigret réel** (3000+ sites, plusieurs minutes) :
-```bash
-osint investigate alice --maigret --top 500
-osint investigate alice --maigret --top 3000 --timeout 45 -o report.json
-```
+## Avancement
 
-**Visualisation graphe interactive** (HTML standalone, ouvrir dans un navigateur) :
-```bash
-# Pipeline d'investigation + render HTML en une passe
-osint investigate alice --maigret --enrich --graph alice.html
+- [x] **Étape 1** — Scaffold du monorepo + infra locale + hello-world déployable
+- [ ] Étape 2 — Modèles de données + migrations Alembic + auth
+- [ ] Étape 3 — Interface `Connector` + premier connecteur (Holehe) + worker Celery
+- [ ] Étape 4 — Design system Poireaut + composant toile d'araignée
+- [ ] Étape 5 — Flux d'enquête end-to-end
 
-# Re-render un report JSON déjà sauvegardé
-osint graph alice_report.json -o alice.html
-```
+## Légal
 
-## 🔍 Poireaut — l'application desktop
-
-Interface graphique basée sur pywebview avec identité Belle Époque
-(vert poireau, or laiton, Fraunces italique) qui embarque tous les
-collecteurs et le viewer graphe dans une seule fenêtre.
-
-```bash
-pip install -e ".[app]"
-poireaut
-```
-
-Fonctionnalités :
-- **Accueil** — présentation + accès rapide à une nouvelle enquête
-- **Enquête** — formulaire (pseudo/email), options (Maigret, enrichissement,
-  Holehe), console live avec chips de comptage par type d'entité
-- **Toile** — le viewer graphe interactif Cytoscape embedded
-- **À propos** — stack technique et notes éthiques
-
-Détection automatique des extras installés (Maigret / Vision / Holehe)
-et désactivation visuelle des options correspondantes si l'extra manque.
-
-Le viewer généré embarque toutes les données (aucun serveur requis), affiche :
-- **Graphe interactif** Cytoscape.js avec layouts organique / radial / hiérarchique
-- **Filtres par type** d'entité cliquables
-- **Recherche** par valeur (raccourci `/`)
-- **Panneau détails** complet à la sélection : évidence, sources, provenance
-- **Surlignage du voisinage** au survol pour tracer les chaînes de déduction
-
-**Détail :**
-```bash
-osint investigate alice -v             # logs debug
-osint investigate alice -o report.json # rapport JSON complet
-```
-
-## Étendre : ajouter un collecteur
-
-Exemple — un collecteur qui enrichit une `Username` en allant chercher
-l'avatar Gravatar si on trouve plus tard un email associé :
-
-```python
-from osint_core.collectors.base import BaseCollector
-from osint_core.entities.base import Evidence
-from osint_core.entities.profiles import ImageAsset
-
-class GravatarCollector(BaseCollector):
-    name = "gravatar"
-    consumes = ["email"]
-    produces = ["image"]
-
-    async def collect(self, event):
-        import hashlib, httpx
-        email = event.entity.value
-        h = hashlib.md5(email.encode()).hexdigest()
-        url = f"https://www.gravatar.com/avatar/{h}?d=404"
-        async with httpx.AsyncClient() as client:
-            r = await client.get(url)
-        if r.status_code == 200:
-            await self.emit(
-                ImageAsset(
-                    value=url,
-                    evidence=[Evidence(
-                        collector=self.name, source_url=url, confidence=0.9
-                    )],
-                ),
-                event,
-            )
-```
-
-Register it once in `cli.py` and the bus auto-wires it into any flow that
-produces `email` entities.
-
-## Feuille de route
-
-- [x] **Phase 0** — socle : entités, bus, stockage, CLI, collecteur démo
-- [x] **Phase 1.0** — wrapper Maigret pour usernames
-- [x] **Phase 1.1** — enrichment profils (GitHub/GitLab API + HTML générique)
-- [x] **Phase 1.2** — extracteurs : emails, URLs, handles, locations (gazetteer)
-- [x] **Phase 2.0** — relations auto-générées + visualisation HTML interactive
-- [x] **Phase 3.0** — premier module IA : hash perceptuel avatars
-      → arêtes sémantiques `same_avatar_as` entre comptes visuellement liés
-- [x] **Phase 4.0** — collecteurs email : Domain extractor (+ disposable flag),
-      Gravatar (email→account→enrichment cascade), Holehe (optionnel)
-- [x] **Phase 4.1** — chaînage transversal :
-      GitHub commits API (emails exposés dans les commits publics),
-      Keybase (preuves cryptographiques cross-plateforme),
-      HackerNews (karma + bio extraction),
-      PGP keys (keys.openpgp.org, parsing des UIDs),
-      subdomain extractor (promotion des données Certificate Transparency en nœuds)
-- [x] **Phase 4.2** — rendu de la toile : palette de prédicats sémantiques
-      (cross_verified_by, pgp_bound_to, same_avatar_as, commits_as, subdomain_of),
-      second bloc de légende filtrable par type de relation
-- [x] **Phase 4.3** — catalogue communautaire : WhatsMyName (600+ sites via la
-      donnée officielle WebBreacher), commande `osint update-wmn` pour refresh,
-      Wayback Machine (snapshots historiques via CDX API), urlscan.io (résolution
-      IP/domaine/pays + screenshot pour chaque URL trouvée)
-- [x] **Phase 4.4** — entreprises françaises : lookup via `recherche-entreprises.api.gouv.fr`
-      (INSEE+INPI+BODACC, gratuit, sans clé), entité `Organization`, prédicats
-      `direct_of` / `headquartered_at` / `operates_domain`, commande dédiée
-      `osint company SEARCH_OR_SIREN`
-- [ ] **Phase 3.1** — CLIP reverse image search (embeddings sémantiques)
-- [ ] **Phase 3.2** — stylométrie : embeddings de bios pour "même auteur"
-- [ ] **Phase 3.3** — NER transformer pour remplacer le gazetteer
-- [ ] **Phase 4.5** — HIBP (breaches, ~4€/mois) + GHunt (Gmail via cookies utilisateur)
-- [ ] **Phase 4.6** — backend Neo4j
-- [ ] **Phase 5** — moteur de corrélation YAML style SpiderFoot + synthèse LLM
-- [ ] **Phase 6** — orchestrateur agentique (LLM planifie le DAG d'investigation)
-
-## Extras optionnels
-
-```bash
-pip install -e ".[app]"          # pywebview — application desktop Poireaut
-pip install -e ".[vision]"       # imagehash + Pillow — avatars
-pip install -e ".[maigret]"      # Maigret réel (3000+ sites)
-pip install -e ".[email-lookup]" # Holehe — ⚠ probes agressifs
-pip install -e ".[dev]"          # tests + linters
-```
-
-## Tests
-
-```bash
-pytest
-```
-
-## Licence
-
-MIT.
+Poireaut est un outil d'investigation en sources ouvertes. L'usage doit respecter
+le RGPD et les législations applicables. Toute enquête sur un tiers sans base
+légale légitime (consentement, intérêt légitime documenté, mission journalistique,
+recherche de sécurité autorisée…) est interdite.
