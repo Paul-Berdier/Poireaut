@@ -3,29 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Poireaut · Outil OSINT</title>
+<title>Poireaut</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,600;1,9..144,700;1,9..144,900&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./styles.css">
-<link rel="icon" type="image/png" href="../assets/icon.png">
 </head>
 <body>
 
 <div class="app">
 
-  <!-- ====================== SIDEBAR ====================== -->
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-mark">
-        <img src="../assets/icon.png" alt="Poireaut">
-      </div>
+      <div class="brand-mark"><img src="./icon.png" alt=""></div>
       <div class="brand-text">
         <div class="brand-name">Poireaut</div>
-        <div class="brand-sub">Outil OSINT</div>
+        <div class="brand-sub">OUTIL OSINT</div>
       </div>
     </div>
-
     <nav class="nav">
       <button class="nav-item active" data-view="home">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 11 12 3l9 8v9a2 2 0 0 1-2 2h-4v-6h-6v6H5a2 2 0 0 1-2-2z"/></svg>
@@ -33,212 +28,139 @@
       </button>
       <button class="nav-item" data-view="investigate">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <span>Enquête</span>
-      </button>
-      <button class="nav-item" data-view="graph" id="nav-graph" disabled>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.5 7.5 11 16m1 0 4.5-8.5M8 6h8"/></svg>
-        <span>Toile</span>
+        <span>Dossier</span>
       </button>
       <button class="nav-item" data-view="about">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3.5v.5"/></svg>
-        <span>À propos</span>
+        <span>A propos</span>
       </button>
     </nav>
-
     <div class="sidebar-foot">
       <div class="caps" id="caps"></div>
-      <div class="version">v<span id="version">—</span></div>
+      <div class="version">v<span id="version">-</span></div>
     </div>
   </aside>
 
-  <!-- ====================== MAIN ====================== -->
   <main class="main">
 
-    <!-- ========== HOME ========== -->
+    <!-- HOME -->
     <section class="view active" id="view-home">
       <div class="home-hero">
-        <img class="home-logo" src="../assets/logo.png" alt="Poireaut">
+        <img class="home-logo" src="./logo.png" alt="Poireaut">
         <div class="home-copy">
           <div class="eyebrow">Outil d'investigation en sources ouvertes</div>
           <h1 class="home-title">Chaque indice<br><em>a une histoire.</em></h1>
           <p class="home-lede">
-            Poireaut orchestre une douzaine de collecteurs, une couche d'enrichissement
-            de profils et un module de corrélation visuelle pour reconstruire le
-            graphe d'une identité numérique — à partir d'un simple pseudo ou d'une adresse.
+            Renseignez tout ce que vous savez sur la cible : pseudos, emails, numeros,
+            adresses IP. Poireaut croise automatiquement toutes les sources et
+            reconstruit la toile.
           </p>
-          <div class="home-actions">
-            <button class="btn btn-primary" data-go="investigate">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-              Mener l'enquête
-            </button>
-            <button class="btn btn-ghost" data-go="about">En savoir plus</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="home-features">
-        <div class="feat">
-          <div class="feat-num">01</div>
-          <div class="feat-title">Pseudos &amp; profils</div>
-          <div class="feat-desc">Maigret croise 3000+ plateformes, puis l'enrichissement scrute les biographies pour en extraire emails, liens, lieux.</div>
-        </div>
-        <div class="feat">
-          <div class="feat-num">02</div>
-          <div class="feat-title">Emails &amp; comptes</div>
-          <div class="feat-desc">Gravatar, Holehe et détection de domaines jetables. Une adresse peut à elle seule ouvrir un sous-graphe entier.</div>
-        </div>
-        <div class="feat">
-          <div class="feat-num">03</div>
-          <div class="feat-title">Corrélation visuelle</div>
-          <div class="feat-desc">Hash perceptuel des avatars, arêtes sémantiques, graphe interactif façon corkboard du détective.</div>
+          <button class="btn btn-primary" data-go="investigate">Ouvrir un dossier</button>
         </div>
       </div>
     </section>
 
-    <!-- ========== INVESTIGATE ========== -->
+    <!-- INVESTIGATE -->
     <section class="view" id="view-investigate">
       <div class="view-header">
-        <div class="view-title-wrap">
-          <div class="eyebrow">Nouveau dossier</div>
-          <h2 class="view-title"><em>Mener</em> l'enquête</h2>
-        </div>
+        <div class="eyebrow">Investigation</div>
+        <h2 class="view-title"><em>Dossier</em> d'enquete</h2>
       </div>
 
       <div class="inv-grid">
+        <div class="panel form-panel">
+          <div class="section-label">Informations connues</div>
+          <p class="form-hint">Renseignez tout ce que vous avez. Chaque champ peut contenir plusieurs valeurs.</p>
 
-        <!-- Form -->
-        <div class="panel form-panel" id="form-panel">
-          <div class="section-label">Cible</div>
-
-          <div class="segmented" id="seg-type">
-            <button class="seg-btn active" data-type="username">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              Pseudonyme
-            </button>
-            <button class="seg-btn" data-type="email">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
-              Email
-            </button>
+          <div class="field-group" id="fg-usernames">
+            <label class="field-group-label">Pseudonymes</label>
+            <div class="multi-inputs" id="inputs-usernames">
+              <div class="multi-row"><input type="text" placeholder="ex. alice_dev" data-type="username"><button class="row-remove" title="Retirer">&times;</button></div>
+            </div>
+            <button class="add-row-btn" data-target="inputs-usernames" data-type="username">+ Ajouter un pseudo</button>
           </div>
 
-          <label class="field">
-            <span class="field-label">Valeur</span>
-            <input type="text" id="target-input" placeholder="ex. alice_dev" autocomplete="off" spellcheck="false">
-          </label>
+          <div class="field-group" id="fg-emails">
+            <label class="field-group-label">Adresses email</label>
+            <div class="multi-inputs" id="inputs-emails">
+              <div class="multi-row"><input type="text" placeholder="ex. alice@gmail.com" data-type="email"><button class="row-remove" title="Retirer">&times;</button></div>
+            </div>
+            <button class="add-row-btn" data-target="inputs-emails" data-type="email">+ Ajouter un email</button>
+          </div>
 
-          <div class="section-label" style="margin-top:1.4rem;">Moyens d'enquête</div>
+          <div class="field-group" id="fg-phones">
+            <label class="field-group-label">Numeros de telephone</label>
+            <div class="multi-inputs" id="inputs-phones">
+              <div class="multi-row"><input type="text" placeholder="ex. +33612345678" data-type="phone"><button class="row-remove" title="Retirer">&times;</button></div>
+            </div>
+            <button class="add-row-btn" data-target="inputs-phones" data-type="phone">+ Ajouter un numero</button>
+          </div>
 
-          <label class="check" id="check-maigret">
-            <input type="checkbox" id="opt-maigret">
-            <span class="check-body">
-              <span class="check-title">Maigret</span>
-              <span class="check-desc">3 000+ sites. Plusieurs minutes. Requiert l'extra <code>maigret</code>.</span>
-            </span>
-          </label>
+          <div class="field-group" id="fg-ips">
+            <label class="field-group-label">Adresses IP</label>
+            <div class="multi-inputs" id="inputs-ips">
+              <div class="multi-row"><input type="text" placeholder="ex. 185.230.63.107" data-type="ip"><button class="row-remove" title="Retirer">&times;</button></div>
+            </div>
+            <button class="add-row-btn" data-target="inputs-ips" data-type="ip">+ Ajouter une IP</button>
+          </div>
 
-          <label class="check">
-            <input type="checkbox" id="opt-enrich" checked>
-            <span class="check-body">
-              <span class="check-title">Enrichissement</span>
-              <span class="check-desc">Profils GitHub / GitLab / Gravatar · extraction d'indices · hash d'avatars.</span>
-            </span>
-          </label>
-
-          <label class="check" id="check-holehe">
-            <input type="checkbox" id="opt-holehe">
-            <span class="check-body">
-              <span class="check-title">Holehe <span class="pill pill-warn">agressif</span></span>
-              <span class="check-desc">Sonde 120+ services via reset de mot de passe. Envoie de vraies requêtes. Requiert l'extra <code>email-lookup</code>.</span>
-            </span>
-          </label>
-
-          <button class="btn btn-primary btn-xl" id="btn-start">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 5 5L20 7"/></svg>
-            Démarrer l'enquête
-          </button>
+          <button class="btn btn-primary btn-xl" id="btn-start">Lancer l'enquete</button>
         </div>
 
-        <!-- Results / live console -->
         <div class="panel results-panel" id="results-panel">
-
           <div class="status-block" id="status-block">
-            <div class="status-empty" id="status-empty">
+            <div id="status-empty">
               <svg class="status-empty-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.2">
-                <circle cx="28" cy="28" r="16"/>
-                <line x1="40" y1="40" x2="54" y2="54" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="28" cy="28" r="16"/><line x1="40" y1="40" x2="54" y2="54" stroke-width="2.5" stroke-linecap="round"/>
               </svg>
-              <div class="status-empty-text">
-                En attente d'une cible…<br>
-                <span>Poireaut est prêt.</span>
-              </div>
+              <div class="status-empty-text"><em>En attente...</em><br><span>POIREAUT EST PRET</span></div>
             </div>
-
-            <div class="status-active" id="status-active" hidden>
+            <div id="status-active" hidden>
               <div class="status-head">
                 <div class="status-dot"></div>
                 <div class="status-phase" id="status-phase">Analyse en cours</div>
-                <div class="status-target" id="status-target"></div>
               </div>
               <div class="status-summary" id="status-summary"></div>
               <div class="log" id="log"></div>
             </div>
-
           </div>
-
           <div class="results-actions" id="results-actions" hidden>
-            <button class="btn btn-primary" id="btn-view-graph">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/><path d="M7.5 7.5 11 16m1 0 4.5-8.5M8 6h8"/></svg>
-              Examiner la toile
-            </button>
-            <button class="btn btn-ghost" id="btn-save-report">Exporter le dossier (JSON)</button>
+            <button class="btn btn-primary" id="btn-view-graph">Ouvrir la toile</button>
+            <button class="btn btn-ghost" id="btn-save-report">Enregistrer</button>
           </div>
-
         </div>
       </div>
     </section>
 
-    <!-- ========== GRAPH ========== -->
-    <section class="view view-graph" id="view-graph">
-      <div class="graph-frame-wrap">
-        <iframe id="graph-frame" title="Graphe d'investigation"></iframe>
-      </div>
-    </section>
-
-    <!-- ========== ABOUT ========== -->
+    <!-- ABOUT -->
     <section class="view" id="view-about">
       <div class="about-card">
-        <img class="about-logo" src="../assets/logo.png" alt="">
+        <img class="about-logo" src="./logo.png" alt="">
         <div>
-          <div class="eyebrow">À propos</div>
+          <div class="eyebrow">A propos</div>
           <h2 class="view-title"><em>Poireaut</em></h2>
           <p class="about-lede">
-            Un poireau en redingote, moustache cirée, loupe en main.
-            Un clin d'œil à Hercule Poirot et à la tradition du détective
-            méthodique qui relie patiemment les indices pour reconstituer
-            une vérité.
+            Un poireau moustachu, loupe en main. Clin d'oeil a Hercule Poirot
+            et a la methode du detective qui relie patiemment les indices.
           </p>
-          <div class="about-stack">
-            <div class="about-section-label">Sous le capot</div>
-            <ul class="about-list">
-              <li><strong>osint_core</strong> — bus pub/sub async, modèle d'entités Pydantic, corrélation par graphe.</li>
-              <li><strong>Collecteurs</strong> — Maigret, enrichment profils, Gravatar, Holehe, hash perceptuel d'avatars.</li>
-              <li><strong>Interface</strong> — pywebview, Cytoscape.js pour la toile, Fraunces &amp; JetBrains Mono.</li>
-            </ul>
-            <div class="about-ethics">
-              <div class="about-section-label">Éthique</div>
-              <p>
-                Poireaut n'exploite que des sources ouvertes. Il est destiné à
-                la protection de votre propre empreinte numérique, à la recherche
-                en sécurité défensive, au journalisme d'investigation, ou aux
-                enquêtes dûment autorisées. Respectez le RGPD et les conditions
-                d'utilisation des plateformes.
-              </p>
-            </div>
-          </div>
+          <div class="about-section-label">Collecteurs actifs</div>
+          <ul class="about-list">
+            <li><strong>Pseudos</strong> — HTTP checker (50+ sites) + WhatsMyName (600+) + Maigret (3000+)</li>
+            <li><strong>Emails</strong> — Gravatar, Holehe (120+ services), PGP (keys.openpgp.org), domaine jetable</li>
+            <li><strong>Telephones</strong> — operateur, type, pays, fuseau (phonenumbers)</li>
+            <li><strong>IP</strong> — geolocalisation, FAI, VPN/proxy (ip-api.com)</li>
+            <li><strong>URLs</strong> — urlscan.io (IP/domaine/pays du serveur + screenshot)</li>
+            <li><strong>Profils</strong> — enrichissement GitHub/GitLab/Gravatar/HackerNews, extraction de bio</li>
+            <li><strong>GitHub</strong> — emails exposes dans les commits publics recents</li>
+            <li><strong>Keybase</strong> — preuves cryptographiques cross-plateforme (Twitter, GitHub, Reddit...)</li>
+            <li><strong>Wayback</strong> — anciennes versions archivees des profils (Internet Archive)</li>
+            <li><strong>Avatars</strong> — hash perceptuel, correlation same_avatar_as</li>
+            <li><strong>Domaines</strong> — WHOIS, DNS MX/TXT, sous-domaines via Certificate Transparency</li>
+            <li><strong>Entreprises FR</strong> — registre officiel gouv.fr (SIREN, dirigeants, siege)</li>
+          </ul>
         </div>
       </div>
     </section>
-
   </main>
 </div>
 

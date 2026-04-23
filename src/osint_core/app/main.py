@@ -1,7 +1,18 @@
-"""Poireaut entry point — launches the desktop window."""
+"""Poireaut — lance la fenêtre desktop.
+
+Au démarrage, on assemble un HTML 100% autonome en mémoire :
+  - CSS inliné dans <style>
+  - JS inliné dans <script>
+  - Images converties en base64 data URIs
+
+Résultat : pywebview reçoit un seul blob HTML via `html=...`,
+aucun fichier externe n'est référencé, aucun chemin relatif ne
+peut casser (Windows, WebView2, n'importe quel environnement).
+"""
 
 from __future__ import annotations
 
+import base64
 import logging
 import sys
 from importlib import resources
@@ -10,32 +21,65 @@ from pathlib import Path
 from osint_core.app.api import PoireautApi
 
 
-def _ui_html_path() -> str:
-    """Return filesystem path to the UI index.html."""
-    return str(resources.files("osint_core.app.ui").joinpath("index.html"))
+def _read_text(package: str, filename: str) -> str:
+    return resources.files(package).joinpath(filename).read_text(encoding="utf-8")
+
+
+def _read_bytes(package: str, filename: str) -> bytes:
+    return resources.files(package).joinpath(filename).read_bytes()
+
+
+def _to_data_uri(png_bytes: bytes) -> str:
+    b64 = base64.b64encode(png_bytes).decode("ascii")
+    return f"data:image/png;base64,{b64}"
 
 
 def _icon_path() -> str | None:
-    """Return filesystem path to the app icon best suited for this OS.
-
-    Windows requires a real .ico file (System.Drawing.Icon refuses PNG).
-    macOS & Linux are happy with PNG. If nothing suitable is found, we
-    return None and the window uses pywebview's default icon.
-    """
-    candidates: list[str] = []
-    if sys.platform == "win32":
-        candidates = ["icon.ico", "icon.png"]
-    else:
-        candidates = ["icon.png", "icon.ico"]
-
-    for name in candidates:
-        try:
-            p = resources.files("osint_core.app.assets").joinpath(name)
-            if Path(str(p)).is_file():
-                return str(p)
-        except Exception:
-            continue
+    """Chemin absolu vers le .ico (Windows) ou .png (autres)."""
+    ext = "icon.ico" if sys.platform == "win32" else "icon.png"
+    try:
+        p = resources.files("osint_core.app.assets").joinpath(ext)
+        if Path(str(p)).is_file():
+            return str(p)
+    except Exception:
+        pass
+    try:
+        alt = "icon.png" if sys.platform == "win32" else "icon.ico"
+        p = resources.files("osint_core.app.assets").joinpath(alt)
+        if Path(str(p)).is_file():
+            return str(p)
+    except Exception:
+        pass
     return None
+
+
+def _build_html() -> str:
+    """Assemble le HTML final avec tout inliné."""
+    html = _read_text("osint_core.app.ui", "index.html")
+    css = _read_text("osint_core.app.ui", "styles.css")
+    js = _read_text("osint_core.app.ui", "app.js")
+
+    logo_uri = _to_data_uri(_read_bytes("osint_core.app.assets", "logo.png"))
+    icon_uri = _to_data_uri(_read_bytes("osint_core.app.assets", "icon.png"))
+
+    # Inliner CSS
+    html = html.replace(
+        '<link rel="stylesheet" href="./styles.css">',
+        f"<style>\n{css}\n</style>",
+    )
+
+    # Inliner JS
+    html = html.replace(
+        '<script src="./app.js"></script>',
+        f"<script>\n{js}\n</script>",
+    )
+
+    # Remplacer les images
+    html = html.replace('href="./icon.png"', f'href="{icon_uri}"')
+    html = html.replace('src="./icon.png"', f'src="{icon_uri}"')
+    html = html.replace('src="./logo.png"', f'src="{logo_uri}"')
+
+    return html
 
 
 def main() -> int:
@@ -49,10 +93,8 @@ def main() -> int:
         import webview
     except ImportError:
         print(
-            "\n× pywebview n'est pas installé.\n\n"
-            "  Installez l'extra 'app' :\n\n"
-            "    pip install 'osint-core[app]'\n\n"
-            "  (ou : pip install pywebview)\n",
+            "\n× pywebview n'est pas installé.\n"
+            "  pip install pywebview\n",
             file=sys.stderr,
         )
         return 1
@@ -60,9 +102,15 @@ def main() -> int:
     api = PoireautApi()
     icon = _icon_path()
 
-    webview.create_window(
+    try:
+        html_blob = _build_html()
+    except Exception as exc:
+        logging.error("Échec de l'assemblage de l'interface : %s", exc)
+        return 1
+
+    window = webview.create_window(
         title="Poireaut · Outil OSINT",
-        url=_ui_html_path(),
+        html=html_blob,
         js_api=api,
         width=1320,
         height=840,
@@ -72,39 +120,21 @@ def main() -> int:
         text_select=True,
     )
 
-    # Try with the icon first; if anything about it fails (wrong format,
-    # .NET complaining on Windows, old pywebview without `icon` kwarg),
-    # retry without it — the window matters more than the icon.
-    attempts: list[dict] = []
-    if icon is not None:
-        attempts.append({"debug": False, "icon": icon})
-    attempts.append({"debug": False})
+    api.set_window(window)
 
-    last_exc: Exception | None = None
-    for kwargs in attempts:
+    started = False
+    if icon:
         try:
-            webview.start(**kwargs)
-            return 0
-        except TypeError as exc:
-            # `icon` not supported by this pywebview version
-            last_exc = exc
-            continue
+            webview.start(debug=False, icon=icon)
+            started = True
+        except Exception:
+            pass
+    if not started:
+        try:
+            webview.start(debug=False)
         except Exception as exc:
-            # Icon file rejected by the OS (e.g. Windows .NET wanting .ico),
-            # or any other init error — retry without icon.
-            last_exc = exc
-            msg = str(exc)
-            if "Icon" in msg or "picture" in msg or "icon" in kwargs:
-                logging.warning(
-                    "Échec d'initialisation avec l'icône (%s). "
-                    "Relance sans icône.",
-                    exc.__class__.__name__,
-                )
-                continue
-            raise
-
-    if last_exc is not None:
-        raise last_exc
+            logging.error("pywebview.start() a échoué : %s", exc)
+            return 1
     return 0
 
 

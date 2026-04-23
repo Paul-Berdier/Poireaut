@@ -25,6 +25,7 @@ dependencies = [
     "rich>=13.7",
     "httpx>=0.27",
     "structlog>=24.1",
+    "phonenumbers>=8.13",
 ]
 
 [project.optional-dependencies]
@@ -59,9 +60,12 @@ packages = ["src/osint_core"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/osint_core/visualization/template.html" = "osint_core/visualization/template.html"
+"src/osint_core/collectors/username/wmn-data.json" = "osint_core/collectors/username/wmn-data.json"
 "src/osint_core/app/ui/index.html" = "osint_core/app/ui/index.html"
 "src/osint_core/app/ui/styles.css" = "osint_core/app/ui/styles.css"
 "src/osint_core/app/ui/app.js" = "osint_core/app/ui/app.js"
+"src/osint_core/app/ui/icon.png" = "osint_core/app/ui/icon.png"
+"src/osint_core/app/ui/logo.png" = "osint_core/app/ui/logo.png"
 "src/osint_core/app/assets/icon.png" = "osint_core/app/assets/icon.png"
 "src/osint_core/app/assets/icon.ico" = "osint_core/app/assets/icon.ico"
 "src/osint_core/app/assets/logo.png" = "osint_core/app/assets/logo.png"
