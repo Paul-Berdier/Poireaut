@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000)
     api_cors_origins: str = Field(default="http://localhost:5173")
 
+    # ─── Auth ───
+    jwt_secret: str = Field(default="change-me")
+    jwt_algorithm: str = Field(default="HS256")
+    jwt_access_token_expire_minutes: int = Field(default=1440)  # 24h
+    allow_registration: bool = Field(default=True)
+
     # ─── Database ───
     database_url: str = Field(
         default="postgresql+asyncpg://poireaut:poireaut@postgres:5432/poireaut"
@@ -42,7 +48,6 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        """Split the comma-separated CORS origins string into a list."""
         return [o.strip() for o in self.api_cors_origins.split(",") if o.strip()]
 
     @property
@@ -52,5 +57,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Cached accessor — settings are loaded once per process."""
     return Settings()

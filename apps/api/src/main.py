@@ -1,8 +1,4 @@
-"""FastAPI application entrypoint.
-
-Step 1 exposes only /health and /. Future steps will register routers here
-(investigations, datapoints, connectors, websocket streaming, …).
-"""
+"""FastAPI application entrypoint."""
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -11,24 +7,24 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
-from src.routes import health
+from src.db.session import engine
+from src.routes import auth, datapoints, entities, health, investigations
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    # TODO (step 2): initialise DB engine, run migrations, warm caches.
+    # Startup: nothing to do here — migrations run out-of-band via alembic.
     yield
-    # Shutdown
-    # TODO (step 2): dispose DB engine, flush pending jobs.
+    # Shutdown: dispose the async engine so connections are returned cleanly.
+    await engine.dispose()
 
 
 app = FastAPI(
     title="Poireaut API",
     description="OSINT investigation platform — pivot, verify, weave the web.",
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -43,6 +39,10 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(investigations.router)
+app.include_router(entities.router)
+app.include_router(datapoints.router)
 
 
 @app.get("/", tags=["meta"])
