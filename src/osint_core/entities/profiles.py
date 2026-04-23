@@ -44,6 +44,24 @@ class Person(Entity):
     approximate_age: int | None = None
 
 
+class Organization(Entity):
+    """A legal entity — company, association, public body.
+
+    The canonical `value` is the registered/commercial name. Concrete
+    identifiers (SIREN/SIRET for France, registration number for other
+    jurisdictions) live in `metadata` so we don't couple the graph to
+    one jurisdiction's schema.
+    """
+
+    entity_type: Literal["organization"] = "organization"
+    legal_form: str | None = None
+    registration_number: str | None = None  # SIREN, company number, etc.
+    jurisdiction: str | None = None  # "FR", "UK", ...
+    registered_address: str | None = None
+    active: bool | None = None
+    created_at: str | None = None  # ISO date if known
+
+
 class Location(Entity):
     entity_type: Literal["location"] = "location"
     latitude: float | None = None

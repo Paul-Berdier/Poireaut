@@ -30,6 +30,15 @@ PREDICATES = frozenset({
     "same_bio_as",      # Account --same_bio_as--> Account
     "co_occurs_with",   # generic co-mention
     "derived_from",     # Entity derived from another (e.g. email from account bio)
+    # --- Cross-verification and attestation ---
+    "cross_verified_by",  # Account --cross_verified_by--> Account (e.g. via Keybase proof)
+    "co_authored_with",   # Account --co_authored_with--> Email (git commit co-authorship)
+    "pgp_bound_to",       # Email --pgp_bound_to--> Email (two emails on same PGP key)
+    "subdomain_of",       # Domain --subdomain_of--> Domain
+    # --- Organizations ---
+    "direct_of",          # Person --direct_of--> Organization (dirigeant)
+    "headquartered_at",   # Organization --headquartered_at--> Location
+    "operates_domain",    # Organization --operates_domain--> Domain
 })
 
 

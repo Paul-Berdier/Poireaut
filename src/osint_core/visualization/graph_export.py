@@ -26,6 +26,7 @@ ENTITY_COLORS: dict[str, str] = {
     "domain":   "#aed581",    # sage
     "ip":       "#aed581",    # same family as domain
     "image":    "#ce93d8",    # soft violet
+    "organization": "#f48fb1",  # rose — legal entities stand out from persons
 }
 
 _LABEL_MAX = 40

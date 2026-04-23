@@ -1,0 +1,194 @@
+{
+  "$schema": "https://raw.githubusercontent.com/WebBreacher/WhatsMyName/main/wmn-data-schema.json",
+  "license": [
+    "Original data from https://github.com/WebBreacher/WhatsMyName — CC-BY 4.0.",
+    "",
+    "This bundled subset is a compact fallback (~18 high-confidence sites) used",
+    "when the full wmn-data.json has not been fetched yet. Run `osint update-wmn`",
+    "to pull the full 600+ site database from the official repo."
+  ],
+  "authors": ["osint-core (bundled subset)", "WebBreacher WhatsMyName project"],
+  "categories": ["coding", "social", "video", "music", "photo", "gaming", "news", "blog", "hobby", "finance"],
+  "sites": [
+    {
+      "name": "GitHub",
+      "uri_check": "https://github.com/{account}",
+      "e_code": 200,
+      "e_string": "\"login\":\"{account}\"",
+      "m_string": "Not Found",
+      "m_code": 404,
+      "known": ["torvalds", "WebBreacher"],
+      "cat": "coding"
+    },
+    {
+      "name": "GitLab",
+      "uri_check": "https://gitlab.com/{account}",
+      "e_code": 200,
+      "e_string": "user-profile",
+      "m_string": "Page Not Found",
+      "m_code": 404,
+      "known": ["gitlab-bot"],
+      "cat": "coding"
+    },
+    {
+      "name": "Dev.to",
+      "uri_check": "https://dev.to/{account}",
+      "e_code": 200,
+      "e_string": "profile-header",
+      "m_string": "That page is missing",
+      "m_code": 404,
+      "known": ["ben"],
+      "cat": "coding"
+    },
+    {
+      "name": "Keybase",
+      "uri_check": "https://keybase.io/{account}",
+      "e_code": 200,
+      "e_string": "profile-heading",
+      "m_string": "404",
+      "m_code": 404,
+      "known": ["chris"],
+      "cat": "coding"
+    },
+    {
+      "name": "HackerNews",
+      "uri_check": "https://news.ycombinator.com/user?id={account}",
+      "e_code": 200,
+      "e_string": "karma:",
+      "m_string": "No such user.",
+      "m_code": 200,
+      "known": ["pg"],
+      "cat": "news"
+    },
+    {
+      "name": "Reddit",
+      "uri_check": "https://www.reddit.com/user/{account}/about.json",
+      "e_code": 200,
+      "e_string": "\"subreddit\":",
+      "m_string": "\"error\":",
+      "m_code": 404,
+      "known": ["spez"],
+      "cat": "social"
+    },
+    {
+      "name": "Medium",
+      "uri_check": "https://medium.com/@{account}",
+      "e_code": 200,
+      "e_string": "og:profile",
+      "m_string": "PAGE_NOT_FOUND",
+      "m_code": 404,
+      "known": ["ev"],
+      "cat": "blog"
+    },
+    {
+      "name": "Twitch",
+      "uri_check": "https://www.twitch.tv/{account}",
+      "e_code": 200,
+      "e_string": "twitchNotificationAlert",
+      "m_string": "Sorry. Unless you've got a time machine",
+      "m_code": 200,
+      "known": ["twitch"],
+      "cat": "video"
+    },
+    {
+      "name": "Vimeo",
+      "uri_check": "https://vimeo.com/{account}",
+      "e_code": 200,
+      "e_string": "profile__hero",
+      "m_string": "Page not found",
+      "m_code": 404,
+      "known": ["vimeo"],
+      "cat": "video"
+    },
+    {
+      "name": "SoundCloud",
+      "uri_check": "https://soundcloud.com/{account}",
+      "e_code": 200,
+      "e_string": "soundcloud://users:",
+      "m_string": "We can't find that user",
+      "m_code": 404,
+      "known": ["forss"],
+      "cat": "music"
+    },
+    {
+      "name": "Last.fm",
+      "uri_check": "https://www.last.fm/user/{account}",
+      "e_code": 200,
+      "e_string": "header-user-details",
+      "m_string": "Whoops! Sorry",
+      "m_code": 404,
+      "known": ["RJ"],
+      "cat": "music"
+    },
+    {
+      "name": "Flickr",
+      "uri_check": "https://www.flickr.com/people/{account}/",
+      "e_code": 200,
+      "e_string": "\"person\":{",
+      "m_string": "Page Not Found",
+      "m_code": 404,
+      "known": ["flickr"],
+      "cat": "photo"
+    },
+    {
+      "name": "Behance",
+      "uri_check": "https://www.behance.net/{account}",
+      "e_code": 200,
+      "e_string": "\"displayName\"",
+      "m_string": "Oops!",
+      "m_code": 404,
+      "known": ["behance"],
+      "cat": "photo"
+    },
+    {
+      "name": "Chess.com",
+      "uri_check": "https://www.chess.com/member/{account}",
+      "e_code": 200,
+      "e_string": "user-username-component",
+      "m_string": "No member found",
+      "m_code": 404,
+      "known": ["hikaru"],
+      "cat": "gaming"
+    },
+    {
+      "name": "Lichess",
+      "uri_check": "https://lichess.org/@/{account}",
+      "e_code": 200,
+      "e_string": "user-show",
+      "m_string": "Page not found",
+      "m_code": 404,
+      "known": ["thibault"],
+      "cat": "gaming"
+    },
+    {
+      "name": "Patreon",
+      "uri_check": "https://www.patreon.com/{account}",
+      "e_code": 200,
+      "e_string": "creator-type",
+      "m_string": "page not found",
+      "m_code": 404,
+      "known": ["patreon"],
+      "cat": "finance"
+    },
+    {
+      "name": "About.me",
+      "uri_check": "https://about.me/{account}",
+      "e_code": 200,
+      "e_string": "profile-page",
+      "m_string": "Page not found",
+      "m_code": 404,
+      "known": ["ryan"],
+      "cat": "social"
+    },
+    {
+      "name": "MyAnimeList",
+      "uri_check": "https://myanimelist.net/profile/{account}",
+      "e_code": 200,
+      "e_string": "profile-container",
+      "m_string": "Invalid Username",
+      "m_code": 404,
+      "known": ["xinil"],
+      "cat": "hobby"
+    }
+  ]
+}

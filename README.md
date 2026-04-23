@@ -201,11 +201,28 @@ produces `email` entities.
       → arêtes sémantiques `same_avatar_as` entre comptes visuellement liés
 - [x] **Phase 4.0** — collecteurs email : Domain extractor (+ disposable flag),
       Gravatar (email→account→enrichment cascade), Holehe (optionnel)
+- [x] **Phase 4.1** — chaînage transversal :
+      GitHub commits API (emails exposés dans les commits publics),
+      Keybase (preuves cryptographiques cross-plateforme),
+      HackerNews (karma + bio extraction),
+      PGP keys (keys.openpgp.org, parsing des UIDs),
+      subdomain extractor (promotion des données Certificate Transparency en nœuds)
+- [x] **Phase 4.2** — rendu de la toile : palette de prédicats sémantiques
+      (cross_verified_by, pgp_bound_to, same_avatar_as, commits_as, subdomain_of),
+      second bloc de légende filtrable par type de relation
+- [x] **Phase 4.3** — catalogue communautaire : WhatsMyName (600+ sites via la
+      donnée officielle WebBreacher), commande `osint update-wmn` pour refresh,
+      Wayback Machine (snapshots historiques via CDX API), urlscan.io (résolution
+      IP/domaine/pays + screenshot pour chaque URL trouvée)
+- [x] **Phase 4.4** — entreprises françaises : lookup via `recherche-entreprises.api.gouv.fr`
+      (INSEE+INPI+BODACC, gratuit, sans clé), entité `Organization`, prédicats
+      `direct_of` / `headquartered_at` / `operates_domain`, commande dédiée
+      `osint company SEARCH_OR_SIREN`
 - [ ] **Phase 3.1** — CLIP reverse image search (embeddings sémantiques)
 - [ ] **Phase 3.2** — stylométrie : embeddings de bios pour "même auteur"
 - [ ] **Phase 3.3** — NER transformer pour remplacer le gazetteer
-- [ ] **Phase 4.1** — HIBP (breaches) + MX validation + SMTP probe
-- [ ] **Phase 4.2** — backend Neo4j
+- [ ] **Phase 4.5** — HIBP (breaches, ~4€/mois) + GHunt (Gmail via cookies utilisateur)
+- [ ] **Phase 4.6** — backend Neo4j
 - [ ] **Phase 5** — moteur de corrélation YAML style SpiderFoot + synthèse LLM
 - [ ] **Phase 6** — orchestrateur agentique (LLM planifie le DAG d'investigation)
 

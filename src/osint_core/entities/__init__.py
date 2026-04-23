@@ -10,7 +10,13 @@ from osint_core.entities.identifiers import (
     Url,
     Username,
 )
-from osint_core.entities.profiles import Account, ImageAsset, Location, Person
+from osint_core.entities.profiles import (
+    Account,
+    ImageAsset,
+    Location,
+    Organization,
+    Person,
+)
 
 __all__ = [
     "Account",
@@ -22,6 +28,7 @@ __all__ = [
     "ImageAsset",
     "IpAddress",
     "Location",
+    "Organization",
     "Person",
     "Phone",
     "Relationship",

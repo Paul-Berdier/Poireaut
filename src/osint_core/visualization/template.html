@@ -210,6 +210,85 @@ body::after {
   font-size: 10px;
 }
 
+/* --------- Edge-predicate legend (stacked above the entity legend) --------- */
+
+.edge-legend {
+  position: absolute;
+  bottom: calc(1.75rem + var(--entity-legend-h, 170px) + 0.75rem);
+  left: 2.5rem;
+  background: rgba(17, 22, 31, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  padding: 1rem 1.25rem 1.1rem;
+  z-index: 10;
+  min-width: 260px;
+}
+#edge-legend-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+#edge-legend-list li {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: color 0.15s, opacity 0.15s;
+  user-select: none;
+}
+#edge-legend-list li:hover { color: var(--text); }
+#edge-legend-list li.hidden {
+  color: var(--text-mute);
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+/* Small SVG-ish swatch showing the line style of each predicate */
+.edge-swatch {
+  width: 44px; height: 10px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.edge-swatch::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%; transform: translateY(-50%);
+  height: 0;
+}
+/* Predicate-specific swatch styles — mirror the Cytoscape stylesheet below. */
+.edge-swatch[data-pred="derived_from"]::before   { border-top: 1px solid #3d4a5c; }
+.edge-swatch[data-pred="same_avatar_as"]::before { border-top: 2.5px dashed #ce93d8; }
+.edge-swatch[data-pred="pgp_bound_to"]::before   { border-top: 2px dashed #d4a02d; }
+.edge-swatch[data-pred="cross_verified_by"]::before { border-top: 2.5px solid #4ade80; }
+.edge-swatch[data-pred="commits_as"]::before     { border-top: 2px solid #4dd0e1; }
+.edge-swatch[data-pred="subdomain_of"]::before   { border-top: 1.5px solid #aed581; }
+.edge-swatch[data-pred="same_bio_as"]::before    { border-top: 2px dotted #b39ddb; }
+.edge-swatch[data-pred="direct_of"]::before      { border-top: 2px solid #f48fb1; }
+.edge-swatch[data-pred="headquartered_at"]::before { border-top: 1.5px dashed #f48fb1; }
+.edge-swatch[data-pred="operates_domain"]::before { border-top: 1.5px solid #f48fb1; }
+.edge-swatch[data-pred="owns"]::before,
+.edge-swatch[data-pred="same_person_as"]::before { border-top: 2px solid #c85450; }
+.edge-swatch[data-pred="has_email"]::before,
+.edge-swatch[data-pred="has_phone"]::before     { border-top: 1.5px solid #ffa726; }
+.edge-swatch[data-pred="found_on"]::before       { border-top: 1.5px solid #00d4a0; }
+/* Fallback for any unknown predicate */
+.edge-swatch[data-pred="default"]::before        { border-top: 1px solid #3d4a5c; }
+.edge-pred-name {
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+.edge-pred-count {
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+}
+
 /* --------- Layout controls (bottom-center) --------- */
 
 .controls {
@@ -593,6 +672,14 @@ body::after {
 
     <div id="cy"></div>
 
+    <div class="edge-legend" id="edge-legend">
+      <div class="legend-title">
+        <span>Relations</span>
+        <span class="hint">click to toggle</span>
+      </div>
+      <ul id="edge-legend-list"></ul>
+    </div>
+
     <div class="legend">
       <div class="legend-title">
         <span>Entity Types</span>
@@ -719,21 +806,129 @@ const cy = cytoscape({
         'transition-duration': 200,
       }
     },
+    // Perceptual-avatar match — bidirectional equivalence, no directional arrow.
     {
       selector: 'edge[predicate = "same_avatar_as"]',
       style: {
         'width': 2.5,
-        'line-color': '#d4a02d',
+        'line-color': '#ce93d8',
         'line-style': 'dashed',
         'line-dash-pattern': [6, 4],
-        'target-arrow-color': '#d4a02d',
-        'source-arrow-color': '#d4a02d',
+        'target-arrow-color': '#ce93d8',
+        'source-arrow-color': '#ce93d8',
         'source-arrow-shape': 'triangle',
         'arrow-scale': 0.7,
         'opacity': 0.9,
         'curve-style': 'bezier',
       }
     },
+    // PGP key binding — two emails attached to the same verified key.
+    {
+      selector: 'edge[predicate = "pgp_bound_to"]',
+      style: {
+        'width': 2,
+        'line-color': '#d4a02d',
+        'line-style': 'dashed',
+        'line-dash-pattern': [3, 3],
+        'target-arrow-color': '#d4a02d',
+        'source-arrow-color': '#d4a02d',
+        'source-arrow-shape': 'triangle',
+        'arrow-scale': 0.65,
+        'opacity': 0.92,
+        'curve-style': 'bezier',
+      }
+    },
+    // Keybase-style cryptographic cross-verification — the strongest edge we draw.
+    {
+      selector: 'edge[predicate = "cross_verified_by"]',
+      style: {
+        'width': 2.5,
+        'line-color': '#4ade80',
+        'target-arrow-color': '#4ade80',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.8,
+        'opacity': 1,
+        'curve-style': 'bezier',
+      }
+    },
+    // Email harvested from public git commits authored by the account.
+    {
+      selector: 'edge[predicate = "commits_as"]',
+      style: {
+        'width': 2,
+        'line-color': '#4dd0e1',
+        'target-arrow-color': '#4dd0e1',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.75,
+        'opacity': 0.9,
+      }
+    },
+    // DNS hierarchy — thin and understated; it's structural, not correlation.
+    {
+      selector: 'edge[predicate = "subdomain_of"]',
+      style: {
+        'width': 1.5,
+        'line-color': '#aed581',
+        'target-arrow-color': '#aed581',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.6,
+        'opacity': 0.75,
+      }
+    },
+    // Stylometric ("same author voice") — dotted lavender, speculative.
+    {
+      selector: 'edge[predicate = "same_bio_as"]',
+      style: {
+        'width': 2,
+        'line-color': '#b39ddb',
+        'line-style': 'dotted',
+        'target-arrow-color': '#b39ddb',
+        'source-arrow-color': '#b39ddb',
+        'source-arrow-shape': 'triangle',
+        'arrow-scale': 0.65,
+        'opacity': 0.85,
+        'curve-style': 'bezier',
+      }
+    },
+    // Corporate attribution — a person directs a company.
+    {
+      selector: 'edge[predicate = "direct_of"]',
+      style: {
+        'width': 2,
+        'line-color': '#f48fb1',
+        'target-arrow-color': '#f48fb1',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.75,
+        'opacity': 0.92,
+      }
+    },
+    // Company head office — structural link to a Location.
+    {
+      selector: 'edge[predicate = "headquartered_at"]',
+      style: {
+        'width': 1.5,
+        'line-color': '#f48fb1',
+        'line-style': 'dashed',
+        'line-dash-pattern': [4, 3],
+        'target-arrow-color': '#f48fb1',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.6,
+        'opacity': 0.75,
+      }
+    },
+    // Company → domain it operates (heuristic match).
+    {
+      selector: 'edge[predicate = "operates_domain"]',
+      style: {
+        'width': 1.5,
+        'line-color': '#f48fb1',
+        'target-arrow-color': '#f48fb1',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.6,
+        'opacity': 0.75,
+      }
+    },
+    // Explicit ownership / identity consolidation — strongest human-level claim.
     {
       selector: 'edge[predicate = "owns"], edge[predicate = "same_person_as"]',
       style: {
@@ -844,6 +1039,7 @@ function renderLegend() {
       if (hiddenTypes.has(t)) hiddenTypes.delete(t); else hiddenTypes.add(t);
       applyTypeFilter();
       renderLegend();
+      syncEdgeLegendHeight();
     });
     ul.appendChild(li);
   });
@@ -855,14 +1051,135 @@ function applyTypeFilter() {
       n.style('display', hiddenTypes.has(n.data('type')) ? 'none' : 'element');
     });
     cy.edges().forEach(e => {
-      const hide = e.source().style('display') === 'none' || e.target().style('display') === 'none';
-      e.style('display', hide ? 'none' : 'element');
+      const endpointHidden =
+        e.source().style('display') === 'none' ||
+        e.target().style('display') === 'none';
+      const predHidden = hiddenPredicates.has(e.data('predicate'));
+      e.style('display', (endpointHidden || predHidden) ? 'none' : 'element');
     });
   });
 }
 
+// --------- Edge predicate legend + filter ---------
+
+// Display names for the predicate legend. Unknown predicates fall back to
+// the raw string (with underscores replaced) — better than silently dropping them.
+const PREDICATE_LABELS = {
+  derived_from: 'derived from',
+  same_avatar_as: 'same avatar',
+  pgp_bound_to: 'PGP key bond',
+  cross_verified_by: 'cross-verified',
+  commits_as: 'commits as',
+  subdomain_of: 'subdomain of',
+  same_bio_as: 'same bio',
+  owns: 'owns',
+  same_person_as: 'same person',
+  has_email: 'has email',
+  has_phone: 'has phone',
+  found_on: 'found on',
+  co_occurs_with: 'co-occurs with',
+  co_authored_with: 'co-authored with',
+  registered_domain: 'registered',
+  posted_from: 'posted from',
+  located_at: 'located at',
+  direct_of: 'directs',
+  headquartered_at: 'HQ at',
+  operates_domain: 'operates domain',
+};
+// Order in the legend — strongest attribution signals first.
+const PREDICATE_ORDER = [
+  'cross_verified_by',
+  'pgp_bound_to',
+  'same_avatar_as',
+  'same_bio_as',
+  'commits_as',
+  'owns',
+  'same_person_as',
+  'direct_of',
+  'headquartered_at',
+  'operates_domain',
+  'co_authored_with',
+  'found_on',
+  'has_email',
+  'has_phone',
+  'registered_domain',
+  'subdomain_of',
+  'posted_from',
+  'located_at',
+  'co_occurs_with',
+  'derived_from',
+];
+// Predicates that have a swatch style defined in the CSS. Anything else maps
+// to the neutral `default` swatch so the legend stays visually consistent.
+const STYLED_PREDICATES = new Set([
+  'derived_from', 'same_avatar_as', 'pgp_bound_to', 'cross_verified_by',
+  'commits_as', 'subdomain_of', 'same_bio_as', 'owns', 'same_person_as',
+  'has_email', 'has_phone', 'found_on',
+  'direct_of', 'headquartered_at', 'operates_domain',
+]);
+
+const predicateCounts = {};
+cy.edges().forEach(e => {
+  const p = e.data('predicate') || 'derived_from';
+  predicateCounts[p] = (predicateCounts[p] || 0) + 1;
+});
+const hiddenPredicates = new Set();
+
+function renderEdgeLegend() {
+  const ul = document.getElementById('edge-legend-list');
+  if (!ul) return;
+  ul.innerHTML = '';
+  const entries = Object.entries(predicateCounts);
+  // Sort by PREDICATE_ORDER index; unknown predicates sorted alphabetically at the end.
+  entries.sort((a, b) => {
+    const ai = PREDICATE_ORDER.indexOf(a[0]);
+    const bi = PREDICATE_ORDER.indexOf(b[0]);
+    if (ai === -1 && bi === -1) return a[0].localeCompare(b[0]);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+  if (entries.length === 0) {
+    // Hide the whole legend card when there are no edges at all.
+    const card = document.getElementById('edge-legend');
+    if (card) card.style.display = 'none';
+    return;
+  }
+  for (const [pred, n] of entries) {
+    const label = PREDICATE_LABELS[pred] || pred.replace(/_/g, ' ');
+    const swatchKey = STYLED_PREDICATES.has(pred) ? pred : 'default';
+    const li = document.createElement('li');
+    li.className = hiddenPredicates.has(pred) ? 'hidden' : '';
+    li.innerHTML = `
+      <span class="edge-swatch" data-pred="${swatchKey}"></span>
+      <span class="edge-pred-name">${label}</span>
+      <span class="edge-pred-count">${n}</span>
+    `;
+    li.addEventListener('click', () => {
+      if (hiddenPredicates.has(pred)) hiddenPredicates.delete(pred);
+      else hiddenPredicates.add(pred);
+      applyTypeFilter();
+      renderEdgeLegend();
+    });
+    ul.appendChild(li);
+  }
+}
+
+function syncEdgeLegendHeight() {
+  /* Stack the two legend cards: the edge legend sits above the entity legend
+     by reading the latter's live height into a CSS var. */
+  const entity = document.querySelector('.legend');
+  if (!entity) return;
+  document.documentElement.style.setProperty(
+    '--entity-legend-h', `${entity.offsetHeight}px`
+  );
+}
+
 renderCounts();
 renderLegend();
+renderEdgeLegend();
+syncEdgeLegendHeight();
+window.addEventListener('resize', syncEdgeLegendHeight);
 
 // --------- Hover: highlight neighborhood ---------
 
