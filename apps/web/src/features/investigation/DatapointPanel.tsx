@@ -40,6 +40,9 @@ export default function DatapointPanel({ datapoint, isPivoting, onChange, onClos
   // If the server confirmed a pivot started (via WS), show a banner.
   const showPivotBanner = isPivoting || busy === 'pivot';
 
+  const valueIsUrl = /^https?:\/\//i.test(datapoint.value);
+  const isPhoto = datapoint.type === 'photo' && valueIsUrl;
+
   return (
     <aside className="dp-panel">
       <div className="dp-panel__head">
@@ -47,7 +50,33 @@ export default function DatapointPanel({ datapoint, isPivoting, onChange, onClos
         <button className="dp-panel__close" onClick={onClose} aria-label="Fermer">×</button>
       </div>
 
-      <h3 className="dp-panel__value" title={datapoint.value}>{datapoint.value}</h3>
+      {isPhoto && (
+        <a
+          href={datapoint.value}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="dp-panel__photo-wrap"
+          title="Ouvrir l'image en grand"
+        >
+          <img
+            src={datapoint.value}
+            alt=""
+            className="dp-panel__photo"
+            referrerPolicy="no-referrer"
+            loading="lazy"
+          />
+        </a>
+      )}
+
+      <h3 className="dp-panel__value" title={datapoint.value}>
+        {valueIsUrl ? (
+          <a href={datapoint.value} target="_blank" rel="noreferrer noopener" className="dp-panel__link">
+            {datapoint.value}
+          </a>
+        ) : (
+          datapoint.value
+        )}
+      </h3>
 
       {showPivotBanner && (
         <div className="pivot-banner">
@@ -63,10 +92,10 @@ export default function DatapointPanel({ datapoint, isPivoting, onChange, onClos
         <dt>Confiance</dt>
         <dd>{confidencePct}</dd>
 
-        {datapoint.source_url && (<>
+        {datapoint.source_url && datapoint.source_url !== datapoint.value && (<>
           <dt>Source</dt>
           <dd>
-            <a href={datapoint.source_url} target="_blank" rel="noreferrer" className="dp-panel__link">
+            <a href={datapoint.source_url} target="_blank" rel="noreferrer noopener" className="dp-panel__link">
               {safeHost(datapoint.source_url)}
             </a>
           </dd>

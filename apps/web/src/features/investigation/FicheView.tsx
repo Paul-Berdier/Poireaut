@@ -48,6 +48,9 @@ export default function FicheView({ investigationId, entityId, onDataChange }: P
   const [card, setCard] = useState<IdentityCard | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  // Default to validated-only — the fiche is the clean summary,
+  // noise stays on the toile tab.
+  const [showOnlyValidated, setShowOnlyValidated] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +66,24 @@ export default function FicheView({ investigationId, entityId, onDataChange }: P
   }, [investigationId, refreshTick]);
 
   const refresh = () => { setRefreshTick((x) => x + 1); onDataChange(); };
+
+  // Apply the validated-only filter client-side so toggling is instant.
+  // We keep each group's original total/validated/rejected counts for
+  // the header badges — only the visible items change.
+  const filteredGroups = (() => {
+    if (!card) return [];
+    if (!showOnlyValidated) return card.groups;
+    return card.groups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((it) => it.status === 'validated'),
+      }))
+      .filter((g) => g.items.length > 0);
+  })();
+
+  const hiddenUnvalidatedCount = card
+    ? card.totals.total - card.totals.validated
+    : 0;
 
   return (
     <div className="fiche">
@@ -89,16 +110,39 @@ export default function FicheView({ investigationId, entityId, onDataChange }: P
         />
       )}
 
+      {card && hiddenUnvalidatedCount > 0 && (
+        <div className="fiche__filter">
+          <label className="fiche__filter-label">
+            <input
+              type="checkbox"
+              checked={showOnlyValidated}
+              onChange={(e) => setShowOnlyValidated(e.target.checked)}
+            />
+            <span>Afficher seulement les données validées</span>
+          </label>
+          {showOnlyValidated && (
+            <span className="fiche__filter-hint">
+              {hiddenUnvalidatedCount} donnée{hiddenUnvalidatedCount > 1 ? 's' : ''} non validée{hiddenUnvalidatedCount > 1 ? 's' : ''} masquée{hiddenUnvalidatedCount > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
       {!card ? (
         <div className="panel__empty">Chargement…</div>
-      ) : card.groups.length === 0 ? (
+      ) : filteredGroups.length === 0 ? (
         <div className="panel__empty">
-          Aucune donnée pour l'instant — utilisez le bloc ci-dessus ou la barre
-          d'ajout rapide dans la toile pour commencer.
+          {showOnlyValidated && card.groups.length > 0 ? (
+            <>
+              Aucune donnée validée pour l'instant. Décochez la case ci-dessus pour voir ce que Mr. Poireaut a trouvé, ou validez depuis la toile.
+            </>
+          ) : (
+            <>Aucune donnée pour l'instant — utilisez le bloc ci-dessus ou la barre d'ajout rapide dans la toile pour commencer.</>
+          )}
         </div>
       ) : (
         <div className="fiche__groups">
-          {card.groups.map((g) => (
+          {filteredGroups.map((g) => (
             <FicheGroup key={g.data_type} group={g} onChanged={refresh} />
           ))}
         </div>
@@ -219,6 +263,7 @@ function FicheItem({
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [thumbBroken, setThumbBroken] = useState(false);
 
   const run = async (label: string, patch: { status: 'validated' | 'rejected' | 'unverified' }) => {
     setBusy(label);
@@ -230,12 +275,32 @@ function FicheItem({
     }
   };
 
+  // Decide the link target. Preference order:
+  //   1. If value itself is a URL (http/https), it's the most direct target.
+  //   2. Otherwise fall back to source_url (for Holehe-style domain values).
+  const valueIsUrl = /^https?:\/\//i.test(dp.value);
+  const href = valueIsUrl ? dp.value : dp.source_url;
+
+  const isPhoto = dp.type === 'photo' && /^https?:\/\//i.test(dp.value);
+
   return (
     <li className={`fi fi--${dp.status}`}>
       <div className="fi__main">
+        {isPhoto && !thumbBroken ? (
+          <a href={href ?? dp.value} target="_blank" rel="noreferrer noopener" className="fi__thumb-wrap">
+            <img
+              src={dp.value}
+              alt=""
+              className="fi__thumb"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={() => setThumbBroken(true)}
+            />
+          </a>
+        ) : null}
         <span className="fi__value" title={dp.value}>
-          {dp.source_url ? (
-            <a href={dp.source_url} target="_blank" rel="noreferrer" className="fi__link">
+          {href ? (
+            <a href={href} target="_blank" rel="noreferrer noopener" className="fi__link">
               {dp.value}
             </a>
           ) : (

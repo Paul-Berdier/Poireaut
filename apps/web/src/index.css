@@ -1472,3 +1472,109 @@ button { font-family: var(--font-body); cursor: pointer; }
   color: rgba(241, 234, 215, 0.85);
   font-family: var(--font-body);
 }
+
+/* ═══════════════════════════════════════════════
+   PHOTO DATAPOINT — thumbnails in graph + fiche + panel
+   ═══════════════════════════════════════════════ */
+
+/* Swap the small icon box for a cropped 32×32 thumbnail in graph nodes */
+.dp-node--photo .dp-node__icon {
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  width: 36px;
+  height: 36px;
+}
+.dp-node__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: var(--r-sm);
+}
+
+/* Slightly bigger value column for photo nodes since the label is a host */
+.dp-node--photo { min-width: 200px; }
+
+/* Fiche: thumbnail wrapper sitting before the value column */
+.fi__thumb-wrap {
+  flex-shrink: 0;
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  border: 1px solid rgba(45, 74, 43, 0.15);
+  background: var(--cream);
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+.fi__thumb-wrap:hover {
+  transform: scale(1.04);
+  border-color: var(--gold);
+}
+.fi__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* When a thumb is present, let the row use flexbox for alignment */
+.fi__main {
+  align-items: flex-start;
+}
+
+/* Panel photo preview — larger, rounded */
+.dp-panel__photo-wrap {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(45, 74, 43, 0.15);
+  background: var(--cream);
+  transition: border-color 120ms ease;
+}
+.dp-panel__photo-wrap:hover { border-color: var(--gold); }
+.dp-panel__photo {
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  object-fit: cover;
+  display: block;
+}
+
+/* ═══════════════════════════════════════════════
+   FICHE — validated-only filter
+   ═══════════════════════════════════════════════ */
+
+.fiche__filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-4);
+  background: rgba(184, 160, 92, 0.08);
+  border: 1px solid rgba(184, 160, 92, 0.25);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.fiche__filter-label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  cursor: pointer;
+  color: var(--forest);
+  font-weight: 500;
+}
+.fiche__filter-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--forest);
+  cursor: pointer;
+}
+.fiche__filter-hint {
+  font-size: 12px;
+  color: var(--gold-deep);
+  font-style: italic;
+}

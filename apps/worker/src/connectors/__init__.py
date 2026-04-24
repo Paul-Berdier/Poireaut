@@ -16,5 +16,6 @@ from src.connectors import hibp              # noqa: F401
 from src.connectors import crtsh             # noqa: F401
 from src.connectors import wayback           # noqa: F401
 from src.connectors import profile_scraper   # noqa: F401
+from src.connectors import reverse_image     # noqa: F401
 
 __all__ = ["BaseConnector", "ConnectorResult", "Finding", "registry"]
