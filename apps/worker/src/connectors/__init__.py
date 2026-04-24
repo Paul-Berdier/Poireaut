@@ -10,6 +10,10 @@ from src.connectors.base import BaseConnector, ConnectorResult, Finding
 from src.connectors.registry import registry
 
 # ─── Import each connector so its @register runs ──────────────
-from src.connectors import holehe  # noqa: F401
+from src.connectors import holehe   # noqa: F401
+from src.connectors import maigret  # noqa: F401
+from src.connectors import hibp     # noqa: F401
+from src.connectors import crtsh    # noqa: F401
+from src.connectors import wayback  # noqa: F401
 
 __all__ = ["BaseConnector", "ConnectorResult", "Finding", "registry"]

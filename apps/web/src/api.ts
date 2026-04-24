@@ -158,6 +158,50 @@ export const deleteDatapoint = (id: string) =>
 export const pivot = (datapointId: string) =>
   request<{ task_id: string }>(`/datapoints/${datapointId}/pivot`, { method: 'POST' });
 
+// ─── Connectors (admin) ─────────────────────────────
+
+export type HealthStatus = 'ok' | 'degraded' | 'dead' | 'unknown';
+export type ConnectorCost = 'free' | 'api_key_free_tier' | 'paid';
+export type ConnectorCategory =
+  | 'email' | 'username' | 'phone' | 'image' | 'domain' | 'ip'
+  | 'breach' | 'people' | 'company' | 'socmint' | 'geoint' | 'archive' | 'other';
+
+export interface ConnectorInfo {
+  id: string;
+  name: string;
+  display_name: string;
+  category: ConnectorCategory;
+  description: string | null;
+  homepage_url: string | null;
+  input_types: DataType[];
+  output_types: DataType[];
+  cost: ConnectorCost;
+  health: HealthStatus;
+  last_health_check: string | null;
+  enabled: boolean;
+}
+
+export type RunStatus = 'pending' | 'running' | 'success' | 'failed' | 'timeout';
+
+export interface ConnectorRun {
+  id: string;
+  connector_id: string;
+  input_datapoint_id: string | null;
+  status: RunStatus;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number | null;
+  result_count: number;
+  error_message: string | null;
+  created_at: string;
+}
+
+export const listConnectors = () => request<ConnectorInfo[]>('/connectors');
+export const listConnectorRuns = (id: string, limit = 20) =>
+  request<ConnectorRun[]>(`/connectors/${id}/runs?limit=${limit}`);
+export const triggerHealthcheck = () =>
+  request<{ task_id: string; message: string }>('/connectors/healthcheck', { method: 'POST' });
+
 // ─── Graph ──────────────────────────────────────────
 
 export const getGraph = (investigationId: string) =>

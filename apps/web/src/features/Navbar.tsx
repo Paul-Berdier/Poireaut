@@ -4,10 +4,9 @@ import type { MeResponse } from '../api';
 interface Props {
   user?: MeResponse | null;
   onLogout?: () => void;
-  step?: string;
 }
 
-export default function Navbar({ user, onLogout, step = '4 / 5' }: Props) {
+export default function Navbar({ user, onLogout }: Props) {
   const [, navigate] = useRoute();
   return (
     <nav className="landing__nav">
@@ -20,9 +19,15 @@ export default function Navbar({ user, onLogout, step = '4 / 5' }: Props) {
         <span>Poireaut</span>
       </button>
       <div className="landing__nav-right">
-        <span className="landing__nav-step">v0.4.0 · Étape {step}</span>
+        <span className="landing__nav-step">v0.5.0 · Étape 5 / 5</span>
         {user && (
           <>
+            <button
+              className="btn btn--ghost btn--sm"
+              onClick={() => navigate({ name: 'admin' })}
+            >
+              Connecteurs
+            </button>
             <span className="landing__nav-user">{user.email}</span>
             <button className="btn btn--ghost btn--sm" onClick={onLogout}>
               Déconnexion

@@ -63,7 +63,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    command: celery -A src.celery_app.celery worker --loglevel=info --concurrency=4
+    command: celery -A src.celery_app.celery worker --beat --scheduler celery.beat:PersistentScheduler --loglevel=info --concurrency=4
 
   web:
     build:

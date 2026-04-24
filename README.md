@@ -11,6 +11,7 @@
 | ----------------- | ------------------------------------------- |
 | **Backend API**   | FastAPI + Pydantic v2 + SQLAlchemy 2 async  |
 | **Worker**        | Celery + Redis, connecteurs OSINT async     |
+| **Scheduler**     | Celery Beat (healthchecks quotidiens)       |
 | **DB**            | PostgreSQL 16 + Alembic                     |
 | **Auth**          | JWT HS256 + bcrypt                          |
 | **Temps réel**    | Redis pub/sub → WebSocket                   |
@@ -26,37 +27,58 @@ docker compose up --build
 
 Front : http://localhost:5173 — API : http://localhost:8000/docs
 
-## L'app, en 30 secondes
-
-1. **Landing** → "Ouvrir une enquête"
-2. **Auth** — onglet Connexion / Nouveau compte
-3. **Dashboard** — liste de tes enquêtes, ou création
-4. **Canvas** — la toile d'araignée de ton enquête
-   - Barre du haut : ajouter un indice (email, pseudo, domaine, …)
-   - Clic sur un nœud : panneau latéral avec valider / rejeter / **pivoter**
-   - Le bouton Pivoter lance tous les connecteurs compatibles en parallèle
-   - Les nouveaux nœuds apparaissent **en live** (WebSocket)
-   - Drag & drop libre des nœuds, minimap, zoom, pan
-
 ## Connecteurs OSINT disponibles
 
-| Nom      | Entrée    | Sortie      | Statut |
-| -------- | --------- | ----------- | ------ |
-| `holehe` | `email`   | `account` × | ✅      |
+| Nom        | Entrée     | Sortie          | Coût          |
+| ---------- | ---------- | --------------- | ------------- |
+| `holehe`   | `email`    | `account`       | Gratuit       |
+| `maigret`  | `username` | `account`, `url` | Gratuit       |
+| `hibp`     | `email`    | `other` (breach) | Clé API gratuite |
+| `crtsh`    | `domain`   | `domain` (sous-)| Gratuit       |
+| `wayback`  | `url`      | `url` (snapshots) | Gratuit    |
 
 Ajouter un connecteur : créer `apps/worker/src/connectors/mon_outil.py`,
-hériter de `BaseConnector`, décorer avec `@register`.
+hériter de `BaseConnector`, décorer avec `@register`, importer dans
+`connectors/__init__.py`. Terminé.
+
+## Fonctionnalités
+
+- ✅ Auth JWT (register / login, désactivable en prod)
+- ✅ Enquêtes multiples par utilisateur, scopées au propriétaire
+- ✅ Datapoints typés (email, pseudo, téléphone, domaine, URL, photo, …)
+- ✅ Pivot sur 1 clic — tous les connecteurs compatibles lancés en parallèle
+- ✅ Graphe interactif (React Flow) mis à jour en live via WebSocket
+- ✅ Validation / rejet / suppression par datapoint avec audit
+- ✅ Page admin : état de santé des connecteurs, historique des runs
+- ✅ Healthcheck quotidien automatique (Celery Beat, 04:17 UTC)
+
+## Variables d'environnement (production)
+
+Sur `poireaut-api` :
+
+| Variable                          | Obligatoire | Notes                                  |
+| --------------------------------- | ----------- | -------------------------------------- |
+| `DATABASE_URL`                    | ✅          | `${{Postgres.DATABASE_URL}}` suffit    |
+| `REDIS_URL`                       | ✅          | `${{Redis.REDIS_URL}}`                 |
+| `CELERY_BROKER_URL`               | ✅          | même Redis, path `/1`                  |
+| `CELERY_RESULT_BACKEND`           | ✅          | même Redis, path `/2`                  |
+| `JWT_SECRET`                      | ✅          | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
+| `API_CORS_ORIGINS`                | ✅          | URL du front, sans slash final          |
+| `ALLOW_REGISTRATION`              |            | `false` une fois le 1ᵉʳ compte créé     |
+| `HIBP_API_KEY`                    |            | Active le connecteur HIBP               |
+| `SHODAN_API_KEY`                  |            | Prévu pour de futurs connecteurs        |
 
 ## Avancement
 
 - [x] **Étape 1** — Scaffold + Docker + Railway
 - [x] **Étape 2** — Modèles, migrations, auth JWT, CRUD, graph endpoint
 - [x] **Étape 3** — Interface Connector, Holehe, orchestrateur Celery, WS stream
-- [x] **Étape 4** — Toile d'araignée interactive (React Flow), page par enquête,
-      validation en un clic, updates live via WebSocket
-- [ ] Étape 5 — Connecteurs supplémentaires (Maigret, HIBP, Sherlock, …),
-      healthchecks planifiés, page admin
+- [x] **Étape 4** — Toile d'araignée interactive (React Flow), page par enquête
+- [x] **Étape 5** — +4 connecteurs (Maigret, HIBP, crt.sh, Wayback),
+      healthchecks planifiés, page admin, polish
 
 ## Légal
 
-Usage strictement soumis au RGPD et aux législations applicables.
+Usage strictement soumis au RGPD et aux législations applicables. Toute
+enquête sur un tiers sans base légale légitime (journalisme, sécurité
+autorisée, recherche documentée…) est interdite.

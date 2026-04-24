@@ -17,13 +17,15 @@ export type Route =
   | { name: 'landing' }
   | { name: 'login' }
   | { name: 'dashboard' }
-  | { name: 'investigation'; id: string };
+  | { name: 'investigation'; id: string }
+  | { name: 'admin' };
 
 function parse(hash: string): Route {
   const h = hash.replace(/^#\/?/, '');
   if (h === '' || h === '/') return { name: 'landing' };
   if (h === 'login') return { name: 'login' };
   if (h === 'dashboard') return { name: 'dashboard' };
+  if (h === 'admin') return { name: 'admin' };
   const m = h.match(/^investigations\/([0-9a-f-]+)$/i);
   if (m) return { name: 'investigation', id: m[1] };
   return { name: 'landing' };
@@ -52,6 +54,7 @@ export function toHash(r: Route): string {
     case 'landing': return '#/';
     case 'login': return '#/login';
     case 'dashboard': return '#/dashboard';
+    case 'admin': return '#/admin';
     case 'investigation': return `#/investigations/${r.id}`;
   }
 }

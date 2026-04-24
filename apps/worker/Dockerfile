@@ -32,4 +32,4 @@ RUN pip install -r /tmp/api-req.txt -r /tmp/worker-req.txt
 COPY apps/api/src ./src
 COPY apps/worker/src ./src
 
-CMD ["celery", "-A", "src.celery_app.celery", "worker", "--loglevel=info", "--concurrency=4"]
+CMD ["celery", "-A", "src.celery_app.celery", "worker", "--beat", "--scheduler", "celery.beat:PersistentScheduler", "--loglevel=info", "--concurrency=4"]

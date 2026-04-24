@@ -5,7 +5,7 @@
     "dockerfilePath": "apps/worker/Dockerfile"
   },
   "deploy": {
-    "startCommand": "celery -A src.celery_app.celery worker --loglevel=info --concurrency=4",
+    "startCommand": "celery -A src.celery_app.celery worker --beat --scheduler celery.beat:PersistentScheduler --loglevel=info --concurrency=4",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

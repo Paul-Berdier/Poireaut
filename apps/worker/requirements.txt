@@ -1,9 +1,10 @@
 # Worker-specific deps on top of api/requirements.txt
 
 # ── OSINT connectors ──
-holehe==1.61                 # email → list of platforms the email is registered on
-httpx==0.28.1                # generic HTTP for simple connectors
+holehe==1.61                 # email → registered platforms
+maigret==0.6.0               # username → profile discovery (2500+ sites)
+httpx==0.28.1                # generic async HTTP
 trio==0.27.0                 # holehe uses trio under the hood
 
 # ── Orchestration ──
-# celery + redis + sqlalchemy[asyncio] + asyncpg + pydantic come from api/requirements.txt
+# celery, redis, sqlalchemy[asyncio], asyncpg, pydantic come from api/requirements.txt

@@ -89,6 +89,52 @@ def ping() -> dict[str, str]:
     }
 
 
+# ─── Healthcheck task (scheduled via Celery Beat) ─────────────
+
+@celery.task(name="src.tasks.healthcheck_all_connectors")
+def healthcheck_all_connectors() -> dict[str, Any]:
+    """Probe every registered connector and persist its health in DB.
+
+    Runs daily via `celery beat`. Keeps the connectors table up to date
+    so the Admin UI can show which tools are alive, and the orchestrator
+    can skip dead ones in future versions.
+    """
+    return asyncio.run(_healthcheck_all())
+
+
+async def _healthcheck_all() -> dict[str, Any]:
+    from src.connectors import registry
+
+    async with _Session() as db:
+        connectors = registry.all()
+        if not connectors:
+            return {"checked": 0}
+
+        # Ensure every connector has a row
+        db_connectors = {c.name: c for c in await _sync_connectors_to_db(db, connectors)}
+        await db.flush()
+
+        summary: dict[str, str] = {}
+        now = datetime.now(timezone.utc)
+        for c in connectors:
+            try:
+                status = await asyncio.wait_for(c.healthcheck(), timeout=20)
+            except asyncio.TimeoutError:
+                status = HealthStatus.DEGRADED
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Healthcheck %s crashed: %s", c.name, exc)
+                status = HealthStatus.DEAD
+
+            row = db_connectors.get(c.name)
+            if row is not None:
+                row.health = status
+                row.last_health_check = now
+            summary[c.name] = status.value
+
+        await db.commit()
+        return {"checked": len(connectors), "status": summary, "at": now.isoformat()}
+
+
 # ─── Main pivot task ────────────────────────────────────────────
 
 @celery.task(name="src.tasks.run_connectors_for_datapoint", bind=True)

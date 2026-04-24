@@ -828,3 +828,166 @@ button { font-family: var(--font-body); cursor: pointer; }
   .investigation__body { grid-template-columns: 1fr; }
   .dp-panel { width: 100%; min-width: 0; max-height: 50vh; }
 }
+
+/* ═══════════════════════════════════════════════
+   ADMIN — connector list
+   ═══════════════════════════════════════════════ */
+
+.connector-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.connector-list__item {
+  background: var(--cream);
+  border: 1px solid rgba(45, 74, 43, 0.12);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.connector-list__header {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.connector-list__header:hover { background: rgba(45, 74, 43, 0.03); }
+
+.connector-list__main { flex: 1; min-width: 0; }
+.connector-list__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--forest);
+}
+.connector-list__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-size: 12px;
+  color: var(--gold-deep);
+  letter-spacing: 0.03em;
+  margin-top: var(--s-1);
+}
+.connector-list__category {
+  font-family: var(--font-display);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.connector-list__cost {
+  color: var(--warn);
+  font-weight: 600;
+}
+.connector-list__desc {
+  margin-top: var(--s-2);
+  font-size: 13px;
+  color: rgba(31, 46, 28, 0.75);
+  max-width: 68ch;
+}
+
+.connector-list__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-1);
+  flex-shrink: 0;
+}
+.connector-list__lastcheck {
+  font-size: 11px;
+  color: var(--gold-deep);
+  opacity: 0.8;
+}
+
+.health-pill {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.health-pill--ok { background: rgba(79, 126, 62, 0.18); color: var(--ok); }
+.health-pill--degraded { background: rgba(198, 126, 45, 0.18); color: var(--warn); }
+.health-pill--dead { background: rgba(154, 59, 44, 0.18); color: var(--danger); }
+.health-pill--unknown { background: rgba(138, 117, 64, 0.15); color: var(--gold-deep); }
+
+.connector-list__runs {
+  padding: var(--s-4);
+  background: rgba(45, 74, 43, 0.03);
+  border-top: 1px dashed rgba(184, 160, 92, 0.3);
+}
+.connector-list__runs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s-3);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+}
+.connector-list__homepage {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: var(--forest);
+  text-decoration: none;
+}
+.connector-list__homepage:hover { text-decoration: underline; }
+
+.runs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.runs-table th {
+  text-align: left;
+  padding: var(--s-2);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+  font-weight: 500;
+  border-bottom: 1px solid rgba(45, 74, 43, 0.1);
+}
+.runs-table td {
+  padding: var(--s-2);
+  border-bottom: 1px solid rgba(45, 74, 43, 0.06);
+  vertical-align: top;
+}
+.runs-table__error {
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--danger);
+}
+
+.run-status {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.run-status--success { background: rgba(79, 126, 62, 0.18); color: var(--ok); }
+.run-status--failed, .run-status--timeout { background: rgba(154, 59, 44, 0.15); color: var(--danger); }
+.run-status--pending, .run-status--running { background: rgba(198, 126, 45, 0.15); color: var(--warn); }
