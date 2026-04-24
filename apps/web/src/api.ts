@@ -202,6 +202,45 @@ export const listConnectorRuns = (id: string, limit = 20) =>
 export const triggerHealthcheck = () =>
   request<{ task_id: string; message: string }>('/connectors/healthcheck', { method: 'POST' });
 
+// ─── Identity card ──────────────────────────────────
+
+export interface DatapointSummary {
+  id: string;
+  type: DataType;
+  value: string;
+  status: VerificationStatus;
+  confidence: number | null;
+  source_url: string | null;
+  source_connector_id: string | null;
+  notes: string | null;
+  extracted_at: string | null;
+  created_at: string;
+}
+
+export interface TypeGroup {
+  data_type: DataType;
+  total: number;
+  validated: number;
+  rejected: number;
+  items: DatapointSummary[];
+}
+
+export interface IdentityCard {
+  investigation_id: string;
+  entity_id: string;
+  display_name: string;
+  groups: TypeGroup[];
+  totals: {
+    total: number;
+    validated: number;
+    unverified: number;
+    rejected: number;
+  };
+}
+
+export const getIdentity = (investigationId: string) =>
+  request<IdentityCard>(`/investigations/${investigationId}/identity`);
+
 // ─── Graph ──────────────────────────────────────────
 
 export const getGraph = (investigationId: string) =>

@@ -170,6 +170,19 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
         db_connectors = {c.name: c for c in await _sync_connectors_to_db(db, connectors)}
         await db.flush()
 
+        # Announce: pivot is starting. The UI uses this to show a spinner on
+        # the source datapoint and a global "1 pivot en cours" indicator.
+        if investigation_id is not None:
+            _publish_investigation_event(
+                investigation_id,
+                {
+                    "type": "pivot.started",
+                    "investigation_id": str(investigation_id),
+                    "datapoint_id": str(dp.id),
+                    "connectors": [c.name for c in connectors],
+                },
+            )
+
         # Run every connector in parallel. Each returns (connector_name, ConnectorResult).
         coros = [
             _invoke_one(c.name, c, dp.value, dp.type)
@@ -223,6 +236,18 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                     )
 
         await db.commit()
+
+        if investigation_id is not None:
+            _publish_investigation_event(
+                investigation_id,
+                {
+                    "type": "pivot.finished",
+                    "investigation_id": str(investigation_id),
+                    "datapoint_id": str(dp.id),
+                    "findings_count": total_findings,
+                    "connectors_run": len(connectors),
+                },
+            )
 
         return {
             "datapoint_id": str(datapoint_id),

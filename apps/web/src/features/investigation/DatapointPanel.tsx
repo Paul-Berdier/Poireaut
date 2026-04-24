@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import {
   deleteDatapoint, pivot, updateDatapoint,
   type DataPoint,
@@ -6,11 +7,12 @@ import {
 
 interface Props {
   datapoint: DataPoint;
+  isPivoting: boolean;
   onChange: () => void;
   onClose: () => void;
 }
 
-export default function DatapointPanel({ datapoint, onChange, onClose }: Props) {
+export default function DatapointPanel({ datapoint, isPivoting, onChange, onClose }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -22,11 +24,11 @@ export default function DatapointPanel({ datapoint, onChange, onClose }: Props) 
     finally { setBusy(null); }
   };
 
-  const validate   = () => run('validate', () => updateDatapoint(datapoint.id, { status: 'validated' }));
-  const reject     = () => run('reject',   () => updateDatapoint(datapoint.id, { status: 'rejected' }));
-  const unmark     = () => run('unmark',   () => updateDatapoint(datapoint.id, { status: 'unverified' }));
-  const doPivot    = () => run('pivot',    () => pivot(datapoint.id));
-  const doDelete   = () => {
+  const validate = () => run('validate', () => updateDatapoint(datapoint.id, { status: 'validated' }));
+  const reject   = () => run('reject',   () => updateDatapoint(datapoint.id, { status: 'rejected' }));
+  const unmark   = () => run('unmark',   () => updateDatapoint(datapoint.id, { status: 'unverified' }));
+  const doPivot  = () => run('pivot',    () => pivot(datapoint.id));
+  const doDelete = () => {
     if (!confirm('Supprimer ce datapoint ? Ses enfants pivotés restent mais orphelins.')) return;
     return run('delete', async () => { await deleteDatapoint(datapoint.id); onClose(); });
   };
@@ -34,6 +36,9 @@ export default function DatapointPanel({ datapoint, onChange, onClose }: Props) 
   const confidencePct = datapoint.confidence != null
     ? `${Math.round(datapoint.confidence * 100)}%`
     : '—';
+
+  // If the server confirmed a pivot started (via WS), show a banner.
+  const showPivotBanner = isPivoting || busy === 'pivot';
 
   return (
     <aside className="dp-panel">
@@ -43,6 +48,13 @@ export default function DatapointPanel({ datapoint, onChange, onClose }: Props) 
       </div>
 
       <h3 className="dp-panel__value" title={datapoint.value}>{datapoint.value}</h3>
+
+      {showPivotBanner && (
+        <div className="pivot-banner">
+          <Loader2 size={14} className="pivot-banner__spin" />
+          <span>Mr. Poireaut tire sur les fils…</span>
+        </div>
+      )}
 
       <dl className="dp-panel__meta">
         <dt>Statut</dt>
@@ -55,7 +67,7 @@ export default function DatapointPanel({ datapoint, onChange, onClose }: Props) 
           <dt>Source</dt>
           <dd>
             <a href={datapoint.source_url} target="_blank" rel="noreferrer" className="dp-panel__link">
-              {new URL(datapoint.source_url).host}
+              {safeHost(datapoint.source_url)}
             </a>
           </dd>
         </>)}
@@ -94,23 +106,28 @@ export default function DatapointPanel({ datapoint, onChange, onClose }: Props) 
         <button
           className="btn btn--primary"
           onClick={doPivot}
-          disabled={busy !== null || datapoint.status === 'rejected'}
+          disabled={busy !== null || datapoint.status === 'rejected' || isPivoting}
           title={
-            datapoint.status === 'rejected'
-              ? 'On ne pivote pas sur un datapoint rejeté'
-              : 'Lancer tous les connecteurs compatibles'
+            isPivoting
+              ? 'Un pivot est déjà en cours sur ce datapoint'
+              : datapoint.status === 'rejected'
+                ? 'On ne pivote pas sur un datapoint rejeté'
+                : 'Lancer tous les connecteurs compatibles'
           }
         >
-          {busy === 'pivot' ? 'Pivot en cours…' : '🔎 Pivoter'}
+          {busy === 'pivot' || isPivoting
+            ? <><Loader2 size={14} className="dp-node__spin" style={{ marginRight: 6 }} /> Pivot en cours…</>
+            : '🔎 Pivoter'}
         </button>
-        <button
-          className="btn btn--ghost btn--sm"
-          onClick={doDelete}
-          disabled={busy !== null}
-        >
+        <button className="btn btn--ghost btn--sm" onClick={doDelete} disabled={busy !== null}>
           Supprimer
         </button>
       </div>
     </aside>
   );
+}
+
+function safeHost(url: string): string {
+  try { return new URL(url).host; }
+  catch { return url; }
 }
