@@ -3,6 +3,7 @@ import {
   login,
   logout,
   me,
+  register,
   listInvestigations,
   createInvestigation,
   getToken,
@@ -101,26 +102,54 @@ function Landing({ onOpenLogin }: { onOpenLogin: () => void }) {
   );
 }
 
-// ─── Login form ──────────────────────────────────────────────
+// ─── Auth form (login or register) ──────────────────────────
 
-function LoginView({
+type AuthMode = 'login' | 'register';
+
+function AuthView({
   onSuccess,
   onCancel,
 }: {
   onSuccess: () => void;
   onCancel: () => void;
 }) {
+  const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const switchMode = (next: AuthMode) => {
+    setMode(next);
+    setErr(null);
+    setConfirm('');
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+
+    if (mode === 'register') {
+      if (password.length < 8) {
+        setErr('Le mot de passe doit faire au moins 8 caractères.');
+        return;
+      }
+      if (password !== confirm) {
+        setErr('Les mots de passe ne correspondent pas.');
+        return;
+      }
+    }
+
     setBusy(true);
     try {
-      await login(email, password);
+      if (mode === 'register') {
+        await register(email, password);
+        // Auto-login right after registration for a seamless flow.
+        await login(email, password);
+      } else {
+        await login(email, password);
+      }
       onSuccess();
     } catch (e) {
       setErr((e as Error).message);
@@ -129,11 +158,39 @@ function LoginView({
     }
   };
 
+  const isRegister = mode === 'register';
+
   return (
     <main className="panel">
       <div className="panel__card">
-        <div className="panel__eyebrow">Identification</div>
-        <h2 className="panel__title">Accès à l'enquête</h2>
+        <div className="panel__eyebrow">
+          {isRegister ? 'Nouveau dossier d’enquêteur' : 'Identification'}
+        </div>
+        <h2 className="panel__title">
+          {isRegister ? 'Créer un compte' : 'Accès à l\'enquête'}
+        </h2>
+
+        <div className="auth-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isRegister}
+            className={`auth-tabs__tab ${!isRegister ? 'auth-tabs__tab--active' : ''}`}
+            onClick={() => switchMode('login')}
+          >
+            Connexion
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isRegister}
+            className={`auth-tabs__tab ${isRegister ? 'auth-tabs__tab--active' : ''}`}
+            onClick={() => switchMode('register')}
+          >
+            Nouveau compte
+          </button>
+        </div>
+
         <form onSubmit={submit} className="form">
           <label className="form__row">
             <span className="form__label">Adresse email</span>
@@ -150,20 +207,41 @@ function LoginView({
             <span className="form__label">Mot de passe</span>
             <input
               type="password"
-              autoComplete="current-password"
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
               required
+              minLength={isRegister ? 8 : undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="form__input"
             />
           </label>
+          {isRegister && (
+            <label className="form__row">
+              <span className="form__label">Confirmation</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                className="form__input"
+              />
+            </label>
+          )}
+
           {err && <div className="form__error">{err}</div>}
+
           <div className="form__actions">
             <button type="button" className="btn btn--ghost" onClick={onCancel}>
               Annuler
             </button>
             <button type="submit" className="btn btn--primary" disabled={busy}>
-              {busy ? 'Connexion…' : 'Se connecter'}
+              {busy
+                ? '…'
+                : isRegister
+                  ? 'Créer le compte'
+                  : 'Se connecter'}
             </button>
           </div>
         </form>
@@ -322,7 +400,7 @@ export default function App() {
 
       {view === 'landing' && <Landing onOpenLogin={() => setView('login')} />}
       {view === 'login' && (
-        <LoginView
+        <AuthView
           onSuccess={handleLoginSuccess}
           onCancel={() => setView('landing')}
         />

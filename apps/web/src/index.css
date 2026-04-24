@@ -539,3 +539,42 @@ button {
   font-size: 24px;
   color: var(--gold);
 }
+
+/* ═══════════════════════════════════════════════
+   AUTH TABS (login / register toggle)
+   ═══════════════════════════════════════════════ */
+
+.auth-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: var(--s-5);
+  padding: 3px;
+  background: rgba(45, 74, 43, 0.06);
+  border-radius: var(--r-md);
+  border: 1px solid rgba(45, 74, 43, 0.1);
+}
+
+.auth-tabs__tab {
+  flex: 1;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--r-md) - 3px);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.auth-tabs__tab:hover:not(.auth-tabs__tab--active) {
+  color: var(--forest);
+}
+
+.auth-tabs__tab--active {
+  background: var(--forest);
+  color: var(--cream);
+  box-shadow: var(--shadow-sm);
+}
