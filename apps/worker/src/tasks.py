@@ -147,6 +147,118 @@ def run_connectors_for_datapoint(self, datapoint_id: str) -> dict[str, Any]:
     return asyncio.run(_run_connectors_for_datapoint(uuid.UUID(datapoint_id)))
 
 
+# ─── Targeted scrape (called from PATCH /datapoints when validating) ────
+
+@celery.task(name="src.tasks.scrape_profile_for_datapoint")
+def scrape_profile_for_datapoint(datapoint_id: str) -> dict[str, Any]:
+    """Run the profile_scraper connector against one datapoint's source_url.
+
+    Invoked automatically by the API when an investigator validates an
+    account-or-URL datapoint with a usable source_url. This is what turns
+    "you just validated @john on twitter" into "→ we pulled his name and
+    avatar in the background".
+    """
+    return asyncio.run(_scrape_profile(uuid.UUID(datapoint_id)))
+
+
+async def _scrape_profile(datapoint_id: uuid.UUID) -> dict[str, Any]:
+    from src.connectors import registry
+
+    async with _Session() as db:
+        dp = await db.get(DataPoint, datapoint_id)
+        if dp is None or not dp.source_url:
+            return {"skipped": "no datapoint or no source_url"}
+
+        scraper = registry.get("profile_scraper")
+        if scraper is None:
+            return {"skipped": "profile_scraper not registered"}
+
+        # Ensure it has a DB row for FK purposes, same as the pivot task.
+        db_connectors = {c.name: c for c in await _sync_connectors_to_db(db, [scraper])}
+        await db.flush()
+        db_connector = db_connectors[scraper.name]
+
+        entity = await db.get(Entity, dp.entity_id)
+        investigation_id = entity.investigation_id if entity else None
+
+        if investigation_id is not None:
+            _publish_investigation_event(
+                investigation_id,
+                {
+                    "type": "pivot.started",
+                    "investigation_id": str(investigation_id),
+                    "datapoint_id": str(dp.id),
+                    "connectors": ["profile_scraper"],
+                    "reason": "auto-verify",
+                },
+            )
+
+        try:
+            result = await asyncio.wait_for(
+                scraper.run(dp.source_url, DataType.URL),
+                timeout=scraper.timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            from src.connectors.base import ConnectorResult
+            result = ConnectorResult(error="timeout")
+        except Exception as exc:  # noqa: BLE001
+            from src.connectors.base import ConnectorResult
+            logger.exception("profile_scraper failed")
+            result = ConnectorResult(error=f"{type(exc).__name__}: {exc}")
+
+        now = datetime.now(timezone.utc)
+        run = ConnectorRun(
+            connector_id=db_connector.id,
+            input_datapoint_id=dp.id,
+            status=(RunStatus.SUCCESS if result.ok else RunStatus.FAILED),
+            started_at=now,
+            finished_at=now,
+            duration_ms=None,
+            result_count=len(result.findings),
+            error_message=result.error,
+            raw_output=result.raw_output,
+        )
+        db.add(run)
+
+        for finding in result.findings:
+            new_dp = _finding_to_datapoint(finding, dp, db_connector.id)
+            db.add(new_dp)
+            if investigation_id is not None:
+                await db.flush()
+                _publish_investigation_event(
+                    investigation_id,
+                    {
+                        "type": "datapoint.created",
+                        "investigation_id": str(investigation_id),
+                        "entity_id": str(dp.entity_id),
+                        "datapoint": _datapoint_payload(new_dp),
+                        "source_datapoint_id": str(dp.id),
+                        "connector": "profile_scraper",
+                    },
+                )
+
+        await db.commit()
+
+        if investigation_id is not None:
+            _publish_investigation_event(
+                investigation_id,
+                {
+                    "type": "pivot.finished",
+                    "investigation_id": str(investigation_id),
+                    "datapoint_id": str(dp.id),
+                    "findings_count": len(result.findings),
+                    "connectors_run": 1,
+                    "reason": "auto-verify",
+                },
+            )
+
+        return {
+            "datapoint_id": str(datapoint_id),
+            "findings_count": len(result.findings),
+            "error": result.error,
+        }
+
+
 async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, Any]:
     async with _Session() as db:
         dp = await db.get(DataPoint, datapoint_id)
@@ -191,6 +303,7 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
         results = await asyncio.gather(*coros, return_exceptions=True)
 
         total_findings = 0
+        per_connector: list[dict[str, Any]] = []
         for item in results:
             if isinstance(item, BaseException):
                 logger.exception("Connector raised: %s", item)
@@ -213,6 +326,14 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                 raw_output=result.raw_output,
             )
             db.add(run)
+
+            # Remember what each connector did for the final pivot event.
+            per_connector.append({
+                "connector": connector_name,
+                "findings_count": len(result.findings),
+                "error": result.error,
+                "duration_ms": duration_ms,
+            })
 
             # Persist each finding as a new DataPoint, pointing back at the source
             for finding in result.findings:
@@ -246,6 +367,9 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                     "datapoint_id": str(dp.id),
                     "findings_count": total_findings,
                     "connectors_run": len(connectors),
+                    # Per-connector breakdown so the UI can explain a 0-findings
+                    # outcome with an actionable "why": HTTP 403, no snapshot, etc.
+                    "per_connector": per_connector,
                 },
             )
 

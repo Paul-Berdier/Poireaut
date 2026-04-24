@@ -59,13 +59,13 @@ export default function InvestigationView({ investigationId }: Props) {
   // WS events pivot.started / pivot.finished toggle this set.
   const [pivotingIds, setPivotingIds] = useState<Set<string>>(new Set());
 
-  // Toast queue
+  // Toast queue — supports multi-line strings via \n
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, duration = 4000) => {
     setToast(msg);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => setToast(null), 4000);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), duration);
   }, []);
 
   // ─── Bootstrap ────────────────────────────────────────────
@@ -119,11 +119,10 @@ export default function InvestigationView({ investigationId }: Props) {
             next.delete(id);
             return next;
           });
-          showToast(
-            n > 0
-              ? `Pivot terminé · ${n} nouveau${n > 1 ? 'x' : ''} résultat${n > 1 ? 's' : ''}`
-              : 'Pivot terminé · aucun résultat',
-          );
+          const perConnector = (ev.per_connector as Array<{
+            connector: string; findings_count: number; error: string | null;
+          }> | undefined) ?? [];
+          showToast(buildPivotFinishedMessage(n, perConnector), n > 0 ? 4000 : 7000);
           refreshGraph();
         } else if (ev.type === 'datapoint.created') {
           // Incremental refresh — just re-fetch the graph. Cheaper than
@@ -364,7 +363,42 @@ export default function InvestigationView({ investigationId }: Props) {
         />
       )}
 
-      {toast && <div className="toast">{toast}</div>}
+      {toast && (
+        <div className="toast">
+          {toast.split('\n').map((line, i) => (
+            <div key={i} className={i === 0 ? 'toast__title' : 'toast__line'}>{line}</div>
+          ))}
+        </div>
+      )}
     </main>
   );
+}
+
+// ─── Toast helpers ───────────────────────────────────────────
+
+function buildPivotFinishedMessage(
+  total: number,
+  perConnector: Array<{ connector: string; findings_count: number; error: string | null }>,
+): string {
+  const headline = total > 0
+    ? `Pivot terminé · ${total} nouveau${total > 1 ? 'x' : ''} résultat${total > 1 ? 's' : ''}`
+    : 'Pivot terminé · aucun résultat';
+
+  if (perConnector.length === 0) return headline;
+
+  // Line per connector: "• holehe: 12 résultats" or "• profile_scraper: HTTP 403 (accès refusé)"
+  const lines = perConnector.map((c) => {
+    if (c.error) {
+      return `• ${c.connector}: ${shorten(c.error)}`;
+    }
+    if (c.findings_count === 0) {
+      return `• ${c.connector}: 0 résultat`;
+    }
+    return `• ${c.connector}: ${c.findings_count} résultat${c.findings_count > 1 ? 's' : ''}`;
+  });
+  return [headline, ...lines].join('\n');
+}
+
+function shorten(msg: string, max = 80): string {
+  return msg.length > max ? msg.slice(0, max - 1) + '…' : msg;
 }
