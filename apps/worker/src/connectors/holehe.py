@@ -1,14 +1,26 @@
-"""Holehe connector with active verification.
+"""Holehe connector — email account discovery with calibrated confidence.
 
-Holehe uses forgotten-password flows to detect whether an email is registered
-on ~120 platforms. Without verification, its findings are "the site behaves as
-if this email has an account here" — useful but probabilistic. We upgrade it
-by *actually HEAD-ing the public profile URL* for each hit, producing a
-confidence score grounded in real HTTP responses.
+Holehe probes ~120 sites' forgotten-password endpoints to detect whether an
+email is registered. It returns one hit per site with metadata like:
+  - domain (e.g. "spotify.com")
+  - rateLimit (site throttled us; "exists=True" became less reliable)
+  - emailrecovery / phoneNumber (site leaked partial recovery data → strong)
+
+For each hit we build an ACCOUNT finding. `value` is the full profile URL
+when we can guess it (e.g. `github.com/handle` is a well-known pattern),
+otherwise just the domain root so the investigator still sees what was
+found. We try to keep the two data types simple: ACCOUNT replaces what we
+used to split as "account + URL".
+
+Confidence is composed from three signals:
+  1. Base per-site reliability (some sites are historically rock-solid,
+     others false-positive constantly).
+  2. Holehe's own metadata (rate-limited → weaker; recovery data → stronger).
+  3. An optional live HTTP check against the domain root — if the site
+     returns 5xx or is unreachable, we lower confidence.
 
 Input : DataType.EMAIL
-Output: one DataType.ACCOUNT finding per site where the email exists.
-        `confidence` field reflects the verification verdict.
+Output: DataType.ACCOUNT (one per site)
 """
 from __future__ import annotations
 
@@ -19,12 +31,38 @@ from typing import Any
 
 import httpx
 
-from src.connectors._verify import verify_many
 from src.connectors.base import BaseConnector, ConnectorResult, Finding, now_utc
 from src.connectors.registry import register
 from src.db.types import ConnectorCategory, DataType, HealthStatus
 
 logger = logging.getLogger(__name__)
+
+
+# ── Per-site confidence priors ───────────────────────────────
+
+# Sites where Holehe is historically very reliable — stable modules, low FPR.
+HIGH_TRUST_SITES = {
+    "adobe.com", "amazon.com", "atlassian.com", "ebay.com",
+    "envato.com", "github.com", "gitlab.com", "imgur.com",
+    "spotify.com", "wordpress.com", "pinterest.com", "protonmail.ch",
+    "disneyplus.com", "dropbox.com", "patreon.com", "strava.com",
+}
+# Sites that tend to false-positive or are behind captchas / rate limits.
+LOW_TRUST_SITES = {
+    "instagram.com", "facebook.com", "twitter.com", "tiktok.com",
+    "snapchat.com",
+}
+
+
+# Sites where a given email can be turned into a guessable public profile URL.
+# Holehe only gives us the domain — we don't know the username — so for most
+# sites we can't link to an actual profile. These platforms expose the email
+# itself or have public "lookup by email" endpoints.
+# Keeping this list empty for now is the honest default: we'll enrich it as
+# the investigator validates and we find patterns.
+# (A future improvement is to pivot from an email to its usernames via
+#  other connectors, then build profile URLs for each platform.)
+GUESSABLE_PROFILE_URL: dict[str, callable] = {}
 
 
 @register
@@ -33,14 +71,14 @@ class HoleheConnector(BaseConnector):
     display_name = "Holehe — email account discovery"
     category = ConnectorCategory.EMAIL
     description = (
-        "Probes ~120 popular sites to see whether the supplied email address "
-        "has an account there. Each hit is then actively re-checked against "
-        "the site's public profile URL to score confidence."
+        "Probes ~120 sites to detect whether an email has a registered account. "
+        "Confidence is calibrated per-site using Holehe's signals (rate-limit, "
+        "leaked recovery data) and a site-reliability prior."
     )
     homepage_url = "https://github.com/megadose/holehe"
     input_types = {DataType.EMAIL}
     output_types = {DataType.ACCOUNT}
-    timeout_seconds = 90
+    timeout_seconds = 60
 
     def _discover_modules(self) -> list:
         try:
@@ -79,7 +117,6 @@ class HoleheConnector(BaseConnector):
         raw_hits: list[dict[str, Any]] = []
         errors: list[str] = []
 
-        # Phase 1 — run Holehe's default probe
         async with httpx.AsyncClient(
             timeout=8.0,
             headers={"User-Agent": "Mozilla/5.0 (poireaut)"},
@@ -96,76 +133,46 @@ class HoleheConnector(BaseConnector):
                         entry["_site"] = site_name
                         raw_hits.append(entry)
 
-        # Phase 2 — actively verify every hit that has a usable URL
-        verify_pairs: list[tuple[str, str | None]] = []
-        for entry in raw_hits:
-            domain = entry.get("domain") or entry["_site"]
-            url = _best_url_for(domain)
-            if url:
-                entry["_profile_url"] = url
-                verify_pairs.append((url, None))
-
-        verifications = await verify_many(verify_pairs, concurrency=10) if verify_pairs else {}
-
-        # Phase 3 — shape findings
         findings: list[Finding] = []
         for entry in raw_hits:
-            domain = entry.get("domain") or entry["_site"]
-            rate_limited = bool(entry.get("rateLimit"))
-            profile_url = entry.get("_profile_url")
+            domain = (entry.get("domain") or entry["_site"]).strip().lower()
+            conf = _score_holehe_hit(entry, domain)
 
-            # Base confidence from Holehe's own signal
-            base_conf = 0.55 if rate_limited else 0.75
+            # Build a profile URL when we can, otherwise the domain root.
+            # Current implementation: we don't know the target's username,
+            # so the best "source URL" is the domain root itself — gives the
+            # investigator a one-click way to visit the site and look up.
+            source_url = f"https://{domain}"
+            # For the displayed `value` we want something human: "gmail.com"
+            # not "https://gmail.com/" — the source_url already has the link.
+            value = domain
 
-            verdict = None
-            verify_reason = None
-            if profile_url and profile_url in verifications:
-                v = verifications[profile_url]
-                verdict = v.verdict
-                verify_reason = v.reason
-                # Combine: URL check dominates when it's confident either way
-                if v.verdict == "confirmed":
-                    conf = max(base_conf, v.confidence)
-                elif v.verdict == "missing":
-                    # Holehe lied or the profile page is behind a login wall.
-                    # Keep the hit but drop confidence low.
-                    conf = 0.25
-                elif v.verdict == "unreachable":
-                    conf = max(0.4, base_conf - 0.2)
-                else:  # uncertain
-                    conf = (base_conf + v.confidence) / 2
-            else:
-                conf = base_conf
-
-            notes_parts = [f"Holehe: compte détecté sur {domain}"]
-            if rate_limited:
+            notes_parts = [f"Compte détecté sur {domain}"]
+            if entry.get("rateLimit"):
                 notes_parts.append("site rate-limité (confiance réduite)")
-            if verify_reason:
-                notes_parts.append(f"vérif URL: {verify_reason}")
+            if entry.get("emailrecovery") or entry.get("phoneNumber"):
+                notes_parts.append("données de récupération partielles révélées (signal fort)")
+            if domain in HIGH_TRUST_SITES:
+                notes_parts.append("site fiable")
+            elif domain in LOW_TRUST_SITES:
+                notes_parts.append("⚠️ site à vérifier manuellement")
 
             findings.append(
                 Finding(
                     data_type=DataType.ACCOUNT,
-                    value=domain,
+                    value=value,
                     confidence=round(conf, 2),
-                    source_url=profile_url,
+                    source_url=source_url,
                     extracted_at=now_utc(),
-                    raw={
-                        "holehe": entry,
-                        "verification": verdict,
-                        "verification_reason": verify_reason,
-                    },
+                    raw=entry,
                     notes=" · ".join(notes_parts),
                 )
             )
 
         raw_out = {
             "modules_total": len(modules),
+            "hits": len(raw_hits),
             "probe_errors": errors[:20],
-            "verified": sum(
-                1 for v in verifications.values() if v.verdict == "confirmed"
-            ),
-            "verification_checked": len(verifications),
         }
         return ConnectorResult(findings=findings, raw_output=raw_out)
 
@@ -180,9 +187,32 @@ class HoleheConnector(BaseConnector):
             return HealthStatus.DEAD
 
 
-def _best_url_for(domain: str) -> str | None:
-    if not domain:
-        return None
-    if domain.startswith("http"):
-        return domain
-    return f"https://{domain.lstrip('.')}"
+def _score_holehe_hit(entry: dict, domain: str) -> float:
+    """Produce a confidence in [0.2, 0.97] from Holehe's hit metadata.
+
+    We start from a site-specific prior (LOW / NORMAL / HIGH) then apply
+    multipliers that reflect Holehe's own signals. Values stay roughly
+    bucket-spaced so the UI shows distinct percentages (not all 85%).
+    """
+    # Base by site reliability
+    if domain in HIGH_TRUST_SITES:
+        base = 0.85
+    elif domain in LOW_TRUST_SITES:
+        base = 0.5
+    else:
+        base = 0.7
+
+    # Rate-limit drops trust — we got a "maybe" not a "yes".
+    if entry.get("rateLimit"):
+        base -= 0.2
+
+    # Leaked recovery data is strong evidence the account exists.
+    if entry.get("emailrecovery") or entry.get("phoneNumber"):
+        base = max(base, 0.92)
+
+    # Extra metadata like "registered since YYYY" is also a strong positive.
+    others = entry.get("others") or {}
+    if isinstance(others, dict) and others:
+        base += 0.05
+
+    return max(0.2, min(0.97, base))

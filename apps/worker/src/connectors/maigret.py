@@ -1,23 +1,18 @@
-"""Maigret connector.
+"""Maigret connector — username profile discovery across ~2500 sites.
 
-Maigret (https://github.com/soxoj/maigret) is Holehe's bigger sibling for
-usernames: it checks ~2500 sites for a given pseudo and returns the URL of
-every profile found. Where Holehe probes email registration endpoints,
-Maigret scrapes public profile pages and validates existence by HTTP status
-+ page contents.
+We only emit ACCOUNT findings now (previously we also emitted a redundant
+URL finding for every hit). The `value` of an ACCOUNT is the full profile
+URL so it's immediately useful: the UI renders it as a clickable link,
+the profile_scraper can accept it as input, and the user sees a single
+node per platform instead of two.
 
 Input : DataType.USERNAME
-Output: one DataType.ACCOUNT finding per site where the profile exists,
-        plus surfaced DataType.URL for the profile permalinks.
-
-Maigret is slow — a full scan against 2500 sites can take minutes. We use
-its default database but cap the per-site timeout so a slow/flaky scan
-doesn't block the Celery worker forever. Total run is bounded by
-`timeout_seconds` in BaseConnector (enforced by the orchestrator).
+Output: DataType.ACCOUNT (one per matched site)
 """
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from src.connectors.base import BaseConnector, ConnectorResult, Finding, now_utc
@@ -33,14 +28,14 @@ class MaigretConnector(BaseConnector):
     display_name = "Maigret — username profile discovery"
     category = ConnectorCategory.USERNAME
     description = (
-        "Scans ~2500 public sites to find where a username has registered "
-        "a profile. No authentication, no notifications sent to the target. "
-        "Returns the profile URLs it validates."
+        "Scans ~2500 public sites to find where a username has registered a "
+        "profile. No authentication, no notifications. Each match produces "
+        "one ACCOUNT finding whose value is the full profile URL."
     )
     homepage_url = "https://github.com/soxoj/maigret"
     input_types = {DataType.USERNAME}
-    output_types = {DataType.ACCOUNT, DataType.URL}
-    timeout_seconds = 180  # Maigret is slow — give it 3 minutes
+    output_types = {DataType.ACCOUNT}
+    timeout_seconds = 180
 
     async def run(self, input_value: str, input_type: DataType) -> ConnectorResult:
         if input_type is not DataType.USERNAME:
@@ -50,7 +45,6 @@ class MaigretConnector(BaseConnector):
         if not username or " " in username:
             return ConnectorResult(error="Username must be non-empty and whitespace-free")
 
-        # Lazy import: maigret is heavy, keep it out of module-load time.
         try:
             import maigret as maigret_pkg
             from maigret.sites import MaigretDatabase
@@ -58,19 +52,13 @@ class MaigretConnector(BaseConnector):
         except ImportError as exc:
             return ConnectorResult(error=f"Maigret library not available: {exc}")
 
-        # Load the bundled site database.
         try:
-            import os
             db_path = os.path.join(maigret_pkg.__path__[0], "resources", "data.json")
             db = MaigretDatabase().load_from_file(db_path)
         except Exception as exc:  # noqa: BLE001
             return ConnectorResult(error=f"Failed to load Maigret site DB: {exc}")
 
         try:
-            # Signature:
-            #   maigret(username, site_dict, logger, *, timeout=3,
-            #           id_type="username", max_connections=100, forced=False,
-            #           no_progressbar=False, cookies=None, ...)
             results: dict[str, Any] = await maigret_run(
                 username=username,
                 site_dict=db.sites_dict,
@@ -87,41 +75,34 @@ class MaigretConnector(BaseConnector):
             return ConnectorResult(error=f"Maigret search failed: {type(exc).__name__}: {exc}")
 
         findings: list[Finding] = []
+        seen_urls: set[str] = set()
+
         for site_name, info in (results or {}).items():
-            # `info` is a QueryResultWrapper. Access the inner status.
-            status = info.get("status") if isinstance(info, dict) else None
-            found = False
+            if not isinstance(info, dict):
+                continue
+            status = info.get("status")
             try:
-                found = bool(status and status.is_found())
+                if not (status and status.is_found()):
+                    continue
             except Exception:  # noqa: BLE001
-                found = False
-            if not found:
                 continue
 
-            url = (info.get("url_user") if isinstance(info, dict) else None) \
-                  or (info.get("url") if isinstance(info, dict) else None)
-            if not url:
+            url = info.get("url_user") or info.get("url")
+            if not url or url in seen_urls:
                 continue
+            seen_urls.add(url)
 
+            # Maigret already validated via its own HTTP check — the url is
+            # reachable and content-matches. We use a high confidence prior.
             findings.append(
                 Finding(
                     data_type=DataType.ACCOUNT,
-                    value=site_name,
-                    confidence=0.9,
+                    value=url,                 # ← full URL, human-readable
+                    confidence=0.88,
                     source_url=url,
                     extracted_at=now_utc(),
                     raw={"site": site_name, "url": url},
-                    notes=f"Profile found on {site_name}",
-                )
-            )
-            findings.append(
-                Finding(
-                    data_type=DataType.URL,
-                    value=url,
-                    confidence=0.9,
-                    source_url=url,
-                    extracted_at=now_utc(),
-                    notes=f"Profile URL on {site_name}",
+                    notes=f"Profil trouvé sur {site_name}",
                 )
             )
 
@@ -129,7 +110,7 @@ class MaigretConnector(BaseConnector):
             findings=findings,
             raw_output={
                 "sites_scanned": len(results or {}),
-                "matches": len(findings) // 2,
+                "matches": len(findings),
             },
         )
 
