@@ -50,8 +50,8 @@ services:
 
   worker:
     build:
-      context: ./apps/worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/worker/Dockerfile
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://poireaut:poireaut@postgres:5432/poireaut
@@ -61,9 +61,9 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    volumes:
-      - ./apps/worker/src:/app/src
-    command: celery -A src.celery_app.celery worker --loglevel=info
+      postgres:
+        condition: service_healthy
+    command: celery -A src.celery_app.celery worker --loglevel=info --concurrency=4
 
   web:
     build:

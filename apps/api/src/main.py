@@ -8,23 +8,30 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
 from src.db.session import engine
-from src.routes import auth, datapoints, entities, health, investigations
+from src.routes import (
+    auth,
+    connectors,
+    datapoints,
+    entities,
+    health,
+    investigations,
+    pivot,
+    websocket,
+)
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: nothing to do here — migrations run out-of-band via alembic.
     yield
-    # Shutdown: dispose the async engine so connections are returned cleanly.
     await engine.dispose()
 
 
 app = FastAPI(
     title="Poireaut API",
     description="OSINT investigation platform — pivot, verify, weave the web.",
-    version="0.2.0",
+    version="0.3.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -43,6 +50,9 @@ app.include_router(auth.router)
 app.include_router(investigations.router)
 app.include_router(entities.router)
 app.include_router(datapoints.router)
+app.include_router(pivot.router)
+app.include_router(connectors.router)
+app.include_router(websocket.router)
 
 
 @app.get("/", tags=["meta"])

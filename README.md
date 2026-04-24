@@ -9,43 +9,13 @@
 
 | Couche            | Techno                                      |
 | ----------------- | ------------------------------------------- |
-| **Backend API**   | FastAPI (Python 3.11) + Pydantic v2         |
-| **Worker**        | Celery + Redis                              |
-| **Database**      | PostgreSQL 16 + SQLAlchemy 2.0 async        |
-| **Migrations**    | Alembic (async)                             |
-| **Auth**          | JWT (HS256) + bcrypt                        |
-| **Cache / Queue** | Redis 7                                     |
+| **Backend API**   | FastAPI + Pydantic v2 + SQLAlchemy 2 async  |
+| **Worker**        | Celery + Redis, connecteurs OSINT async     |
+| **DB**            | PostgreSQL 16 + Alembic                     |
+| **Auth**          | JWT HS256 + bcrypt                          |
+| **Temps réel**    | Redis pub/sub → WebSocket                   |
 | **Frontend**      | React 18 + Vite + TypeScript                |
-| **Graphe**        | React Flow (ajouté à l'étape 4)             |
-| **Déploiement**   | Railway (services séparés, Dockerfile each) |
-
-## Structure du monorepo
-
-```
-poireaut/
-├── apps/
-│   ├── api/        FastAPI
-│   │   ├── src/
-│   │   │   ├── db/          engine, Base, enums partagés
-│   │   │   ├── models/      SQLAlchemy (User, Investigation, Entity, DataPoint, Connector, ConnectorRun)
-│   │   │   ├── schemas/     Pydantic I/O
-│   │   │   ├── services/    logique métier (auth, …)
-│   │   │   ├── routes/      FastAPI routers
-│   │   │   ├── deps.py      get_db, get_current_user
-│   │   │   ├── config.py
-│   │   │   └── main.py
-│   │   ├── migrations/      Alembic
-│   │   ├── tests/
-│   │   ├── alembic.ini
-│   │   ├── entrypoint.sh    applique les migrations puis lance uvicorn
-│   │   └── Dockerfile
-│   ├── worker/     Celery
-│   └── web/        React
-├── docs/ARCHITECTURE.md
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
+| **Déploiement**   | Railway — 3 services (api, worker, web)     |
 
 ## Démarrer en local
 
@@ -54,104 +24,43 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Les migrations Alembic sont appliquées **automatiquement** au démarrage de
-`api` (via `entrypoint.sh` → `alembic upgrade head`). Tu n'as rien à lancer
-à la main.
-
-Accès :
 - Frontend : http://localhost:5173
 - API docs : http://localhost:8000/docs
-- Health   : http://localhost:8000/health
 
-## API — endpoints disponibles (étape 2)
+## Connecteurs OSINT disponibles
 
-Toutes les routes `/investigations`, `/entities`, `/datapoints` exigent un
-header `Authorization: Bearer <token>`.
+| Nom      | Entrée    | Sortie      | Statut |
+| -------- | --------- | ----------- | ------ |
+| `holehe` | `email`   | `account` × | ✅      |
 
-### Auth
-| Méthode | Route            | Description                       |
-| ------- | ---------------- | --------------------------------- |
-| POST    | `/auth/register` | Créer un compte (désactivable via `ALLOW_REGISTRATION=false`) |
-| POST    | `/auth/login`    | `application/x-www-form-urlencoded` → token JWT |
-| GET     | `/auth/me`       | Profil courant                    |
+Ajouter un connecteur : créer `apps/worker/src/connectors/mon_outil.py`,
+hériter de `BaseConnector`, décorer avec `@register`, importer depuis
+`connectors/__init__.py`. Terminé.
 
-### Enquêtes
-| Méthode | Route                                  |
-| ------- | -------------------------------------- |
-| GET     | `/investigations`                      |
-| POST    | `/investigations`                      |
-| GET     | `/investigations/{id}`                 |
-| PATCH   | `/investigations/{id}`                 |
-| DELETE  | `/investigations/{id}`                 |
-| GET     | `/investigations/{id}/entities`        |
-| POST    | `/investigations/{id}/entities`        |
-| GET     | `/investigations/{id}/graph`           |
+## Flux d'une enquête
 
-### Entités & datapoints
-| Méthode | Route                                |
-| ------- | ------------------------------------ |
-| GET     | `/entities/{id}`                     |
-| PATCH   | `/entities/{id}`                     |
-| DELETE  | `/entities/{id}`                     |
-| GET     | `/entities/{id}/datapoints`          |
-| POST    | `/entities/{id}/datapoints`          |
-| GET     | `/datapoints/{id}`                   |
-| PATCH   | `/datapoints/{id}`  ← validation     |
-| DELETE  | `/datapoints/{id}`                   |
-
-## Créer une nouvelle migration
-
-À faire quand tu modifies un modèle :
-
-```bash
-# autogénère une révision depuis la diff modèles ↔ DB
-docker compose exec api alembic revision --autogenerate -m "add foo column"
-
-# applique
-docker compose exec api alembic upgrade head
-
-# revenir une révision en arrière
-docker compose exec api alembic downgrade -1
-```
-
-## Lancer les tests
-
-```bash
-docker compose exec api pytest -q
-```
-
-## Déploiement Railway
-
-| Service Railway   | Root directory   | Type           |
-| ----------------- | ---------------- | -------------- |
-| `poireaut-api`    | `apps/api`       | Dockerfile     |
-| `poireaut-worker` | `apps/worker`    | Dockerfile     |
-| `poireaut-web`    | `apps/web`       | Dockerfile     |
-| `poireaut-db`     | —                | Postgres addon |
-| `poireaut-redis`  | —                | Redis addon    |
-
-Variables à fournir au service `poireaut-api` sur Railway :
-- `DATABASE_URL` (auto-injecté si tu relies l'addon Postgres)
-- `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` (auto-injectés si tu relies Redis)
-- `JWT_SECRET` (**obligatoire** — `python -c "import secrets; print(secrets.token_urlsafe(64))"`)
-- `ALLOW_REGISTRATION=false` (sauf en dev)
-- `API_CORS_ORIGINS=https://poireaut-web.up.railway.app` (l'URL publique du front)
-
-Au premier déploiement : crée un admin via l'API avec `ALLOW_REGISTRATION=true`,
-puis passe-le à `false`.
+1. `POST /auth/register` ou `/login` → token JWT
+2. `POST /investigations` → créer un dossier
+3. `POST /investigations/{id}/entities` → ajouter la cible
+4. `POST /entities/{id}/datapoints` → insérer la 1re miette (un email par ex.)
+5. `POST /datapoints/{id}/pivot` → **le worker lance tous les connecteurs
+   compatibles en parallèle**
+6. Abonne-toi à `WS /ws/investigations/{id}?token=…` pour voir les résultats
+   arriver en live via Redis pub/sub
+7. `PATCH /datapoints/{newId}` pour valider ou rejeter chaque finding
+8. Re-pivoter depuis un datapoint validé pour étendre la toile
 
 ## Avancement
 
-- [x] **Étape 1** — Scaffold du monorepo + infra locale + hello-world déployable
-- [x] **Étape 2** — Modèles (User, Investigation, Entity, DataPoint, Connector, ConnectorRun)
-      + Alembic + auth JWT + CRUD enquêtes/entités/datapoints + endpoint graphe
-- [ ] Étape 3 — Interface `Connector` + premier connecteur (Holehe) + worker Celery
-- [ ] Étape 4 — Design system Poireaut + composant toile d'araignée
-- [ ] Étape 5 — Flux d'enquête end-to-end
+- [x] **Étape 1** — Scaffold + Docker + Railway
+- [x] **Étape 2** — Modèles, migrations, auth JWT, CRUD, graph endpoint
+- [x] **Étape 3** — Interface Connector, Holehe, orchestrateur Celery,
+      pub/sub Redis → WebSocket, UI login + dashboard
+- [ ] Étape 4 — Toile d'araignée interactive (React Flow) + UI par enquête
+- [ ] Étape 5 — Connecteurs supplémentaires (Maigret, HIBP, Sherlock, …)
+      + healthchecks planifiés + admin
 
 ## Légal
 
-Poireaut est un outil d'investigation en sources ouvertes. L'usage doit respecter
-le RGPD et les législations applicables. Toute enquête sur un tiers sans base
-légale légitime (consentement, intérêt légitime documenté, mission journalistique,
-recherche de sécurité autorisée…) est interdite.
+Usage strictement soumis au RGPD et aux législations applicables. Aucune
+enquête sur un tiers sans base légale légitime.

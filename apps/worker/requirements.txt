@@ -1,5 +1,9 @@
-celery[redis]==5.4.0
-redis==5.2.0
-pydantic==2.10.3
-pydantic-settings==2.6.1
-python-dotenv==1.0.1
+# Worker-specific deps on top of api/requirements.txt
+
+# ── OSINT connectors ──
+holehe==1.61                 # email → list of platforms the email is registered on
+httpx==0.28.1                # generic HTTP for simple connectors
+trio==0.27.0                 # holehe uses trio under the hood
+
+# ── Orchestration ──
+# celery + redis + sqlalchemy[asyncio] + asyncpg + pydantic come from api/requirements.txt
