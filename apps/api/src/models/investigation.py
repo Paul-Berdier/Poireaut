@@ -5,12 +5,12 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
-from src.db.types import InvestigationStatus
+from src.db.types import InvestigationStatus, pg_enum
 
 if TYPE_CHECKING:
     from src.models.entity import Entity
@@ -28,7 +28,7 @@ class Investigation(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[InvestigationStatus] = mapped_column(
-        Enum(InvestigationStatus, name="investigation_status"),
+        pg_enum(InvestigationStatus, name="investigation_status"),
         default=InvestigationStatus.ACTIVE,
         nullable=False,
         index=True,

@@ -14,7 +14,6 @@ from sqlalchemy import (
     ARRAY,
     Boolean,
     DateTime,
-    Enum,
     ForeignKey,
     Integer,
     String,
@@ -31,6 +30,7 @@ from src.db.types import (
     DataType,
     HealthStatus,
     RunStatus,
+    pg_enum,
 )
 
 
@@ -48,7 +48,7 @@ class Connector(Base):
     display_name: Mapped[str] = mapped_column(String(128), nullable=False)
 
     category: Mapped[ConnectorCategory] = mapped_column(
-        Enum(ConnectorCategory, name="connector_category"),
+        pg_enum(ConnectorCategory, name="connector_category"),
         nullable=False,
         index=True,
     )
@@ -57,23 +57,23 @@ class Connector(Base):
 
     # Which DataType can be fed in / comes out.
     input_types: Mapped[list[DataType]] = mapped_column(
-        ARRAY(Enum(DataType, name="data_type", create_type=False)),
+        ARRAY(pg_enum(DataType, name="data_type")),
         nullable=False,
         default=list,
     )
     output_types: Mapped[list[DataType]] = mapped_column(
-        ARRAY(Enum(DataType, name="data_type", create_type=False)),
+        ARRAY(pg_enum(DataType, name="data_type")),
         nullable=False,
         default=list,
     )
 
     cost: Mapped[ConnectorCost] = mapped_column(
-        Enum(ConnectorCost, name="connector_cost"),
+        pg_enum(ConnectorCost, name="connector_cost"),
         default=ConnectorCost.FREE,
         nullable=False,
     )
     health: Mapped[HealthStatus] = mapped_column(
-        Enum(HealthStatus, name="health_status"),
+        pg_enum(HealthStatus, name="health_status"),
         default=HealthStatus.UNKNOWN,
         nullable=False,
     )
@@ -126,7 +126,7 @@ class ConnectorRun(Base):
     )
 
     status: Mapped[RunStatus] = mapped_column(
-        Enum(RunStatus, name="run_status"),
+        pg_enum(RunStatus, name="run_status"),
         default=RunStatus.PENDING,
         nullable=False,
         index=True,

@@ -6,6 +6,30 @@ from __future__ import annotations
 
 from enum import Enum
 
+from sqlalchemy import Enum as SAEnum
+
+
+def pg_enum(enum_cls: type[Enum], *, name: str) -> SAEnum:
+    """SQLAlchemy Enum column helper that stores `.value` (not `.name`).
+
+    By default SQLAlchemy's ``Enum`` sends ``member.name`` to the database.
+    Our Python members are UPPERCASE (``INVESTIGATOR``) while the Postgres
+    enum was declared in lowercase (``'investigator'``). Without
+    ``values_callable``, INSERTs fail with::
+
+        invalid input value for enum user_role: "INVESTIGATOR"
+
+    ``values_callable`` makes SQLAlchemy send ``member.value`` instead.
+    ``create_type=False`` keeps Alembic in charge of enum lifecycle.
+    """
+    return SAEnum(
+        enum_cls,
+        name=name,
+        values_callable=lambda e: [m.value for m in e],
+        create_type=False,
+        native_enum=True,
+    )
+
 
 class UserRole(str, Enum):
     ADMIN = "admin"

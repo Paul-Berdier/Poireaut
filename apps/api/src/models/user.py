@@ -5,12 +5,12 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, String, func
+from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
-from src.db.types import UserRole
+from src.db.types import UserRole, pg_enum
 
 if TYPE_CHECKING:
     from src.models.investigation import Investigation
@@ -27,7 +27,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role"),
+        pg_enum(UserRole, name="user_role"),
         default=UserRole.INVESTIGATOR,
         nullable=False,
     )

@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
-    Enum,
     Float,
     ForeignKey,
     String,
@@ -28,7 +27,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
-from src.db.types import DataType, VerificationStatus
+from src.db.types import DataType, VerificationStatus, pg_enum
 
 if TYPE_CHECKING:
     from src.models.connector import Connector
@@ -53,14 +52,14 @@ class DataPoint(Base):
     )
 
     type: Mapped[DataType] = mapped_column(
-        Enum(DataType, name="data_type"),
+        pg_enum(DataType, name="data_type"),
         nullable=False,
         index=True,
     )
     value: Mapped[str] = mapped_column(Text, nullable=False)
 
     status: Mapped[VerificationStatus] = mapped_column(
-        Enum(VerificationStatus, name="verification_status"),
+        pg_enum(VerificationStatus, name="verification_status"),
         default=VerificationStatus.UNVERIFIED,
         nullable=False,
         index=True,

@@ -10,12 +10,12 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
-from src.db.types import EntityRole
+from src.db.types import EntityRole, pg_enum
 
 if TYPE_CHECKING:
     from src.models.datapoint import DataPoint
@@ -38,7 +38,7 @@ class Entity(Base):
     )
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[EntityRole] = mapped_column(
-        Enum(EntityRole, name="entity_role"),
+        pg_enum(EntityRole, name="entity_role"),
         default=EntityRole.TARGET,
         nullable=False,
     )
