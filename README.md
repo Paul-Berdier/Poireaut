@@ -14,7 +14,7 @@
 | **DB**            | PostgreSQL 16 + Alembic                     |
 | **Auth**          | JWT HS256 + bcrypt                          |
 | **Temps réel**    | Redis pub/sub → WebSocket                   |
-| **Frontend**      | React 18 + Vite + TypeScript                |
+| **Frontend**      | React 18 + Vite + TypeScript + React Flow   |
 | **Déploiement**   | Railway — 3 services (api, worker, web)     |
 
 ## Démarrer en local
@@ -24,8 +24,19 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- Frontend : http://localhost:5173
-- API docs : http://localhost:8000/docs
+Front : http://localhost:5173 — API : http://localhost:8000/docs
+
+## L'app, en 30 secondes
+
+1. **Landing** → "Ouvrir une enquête"
+2. **Auth** — onglet Connexion / Nouveau compte
+3. **Dashboard** — liste de tes enquêtes, ou création
+4. **Canvas** — la toile d'araignée de ton enquête
+   - Barre du haut : ajouter un indice (email, pseudo, domaine, …)
+   - Clic sur un nœud : panneau latéral avec valider / rejeter / **pivoter**
+   - Le bouton Pivoter lance tous les connecteurs compatibles en parallèle
+   - Les nouveaux nœuds apparaissent **en live** (WebSocket)
+   - Drag & drop libre des nœuds, minimap, zoom, pan
 
 ## Connecteurs OSINT disponibles
 
@@ -34,33 +45,18 @@ docker compose up --build
 | `holehe` | `email`   | `account` × | ✅      |
 
 Ajouter un connecteur : créer `apps/worker/src/connectors/mon_outil.py`,
-hériter de `BaseConnector`, décorer avec `@register`, importer depuis
-`connectors/__init__.py`. Terminé.
-
-## Flux d'une enquête
-
-1. `POST /auth/register` ou `/login` → token JWT
-2. `POST /investigations` → créer un dossier
-3. `POST /investigations/{id}/entities` → ajouter la cible
-4. `POST /entities/{id}/datapoints` → insérer la 1re miette (un email par ex.)
-5. `POST /datapoints/{id}/pivot` → **le worker lance tous les connecteurs
-   compatibles en parallèle**
-6. Abonne-toi à `WS /ws/investigations/{id}?token=…` pour voir les résultats
-   arriver en live via Redis pub/sub
-7. `PATCH /datapoints/{newId}` pour valider ou rejeter chaque finding
-8. Re-pivoter depuis un datapoint validé pour étendre la toile
+hériter de `BaseConnector`, décorer avec `@register`.
 
 ## Avancement
 
 - [x] **Étape 1** — Scaffold + Docker + Railway
 - [x] **Étape 2** — Modèles, migrations, auth JWT, CRUD, graph endpoint
-- [x] **Étape 3** — Interface Connector, Holehe, orchestrateur Celery,
-      pub/sub Redis → WebSocket, UI login + dashboard
-- [ ] Étape 4 — Toile d'araignée interactive (React Flow) + UI par enquête
-- [ ] Étape 5 — Connecteurs supplémentaires (Maigret, HIBP, Sherlock, …)
-      + healthchecks planifiés + admin
+- [x] **Étape 3** — Interface Connector, Holehe, orchestrateur Celery, WS stream
+- [x] **Étape 4** — Toile d'araignée interactive (React Flow), page par enquête,
+      validation en un clic, updates live via WebSocket
+- [ ] Étape 5 — Connecteurs supplémentaires (Maigret, HIBP, Sherlock, …),
+      healthchecks planifiés, page admin
 
 ## Légal
 
-Usage strictement soumis au RGPD et aux législations applicables. Aucune
-enquête sur un tiers sans base légale légitime.
+Usage strictement soumis au RGPD et aux législations applicables.

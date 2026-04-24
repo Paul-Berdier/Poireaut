@@ -1,97 +1,57 @@
 /**
- * Tiny API client for Poireaut.
- *
- * Keeps auth in localStorage, attaches the bearer token to every request,
- * and exposes typed helpers for the endpoints we use.
+ * Poireaut API client — fully typed, token-aware.
  */
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const WS_URL = import.meta.env.VITE_WS_URL ?? API_URL.replace(/^http/, 'ws');
 const TOKEN_KEY = 'poireaut.token';
+
+export const env = { API_URL, WS_URL };
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
-
-export function setToken(token: string | null) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
+export function setToken(t: string | null) {
+  if (t) localStorage.setItem(TOKEN_KEY, t);
   else localStorage.removeItem(TOKEN_KEY);
 }
 
-async function request<T>(
-  path: string,
-  init: RequestInit = {},
-  body?: unknown,
-): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, body?: unknown): Promise<T> {
   const headers = new Headers(init.headers);
-  const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  if (body !== undefined && !(body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json');
-  }
+  const tok = getToken();
+  if (tok) headers.set('Authorization', `Bearer ${tok}`);
+  if (body !== undefined && !(body instanceof FormData)) headers.set('Content-Type', 'application/json');
 
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
-    body:
-      body === undefined
-        ? (init.body as BodyInit | null | undefined)
-        : body instanceof FormData
-          ? body
-          : JSON.stringify(body),
+    body: body === undefined
+      ? (init.body as BodyInit | null | undefined)
+      : body instanceof FormData ? body : JSON.stringify(body),
   });
 
   if (!res.ok) {
     let detail = res.statusText;
-    try {
-      const j = await res.json();
-      detail = j.detail ?? detail;
-    } catch {
-      /* ignore */
-    }
+    try { detail = (await res.json()).detail ?? detail; } catch { /* ignore */ }
     throw new Error(`${res.status} — ${detail}`);
   }
-
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
-// ─── Auth ────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────
 
-export async function login(email: string, password: string) {
-  const form = new FormData();
-  form.set('username', email);
-  form.set('password', password);
-  const { access_token } = await request<{ access_token: string }>(
-    '/auth/login',
-    { method: 'POST' },
-    form,
-  );
-  setToken(access_token);
-  return access_token;
-}
+export type DataType =
+  | 'email' | 'username' | 'phone' | 'name' | 'address'
+  | 'url' | 'photo' | 'ip' | 'domain' | 'date_of_birth'
+  | 'account' | 'location' | 'employer' | 'school' | 'family' | 'other';
 
-export async function register(email: string, password: string) {
-  return request<{ id: string; email: string }>(
-    '/auth/register',
-    { method: 'POST' },
-    { email, password },
-  );
-}
+export type VerificationStatus = 'unverified' | 'validated' | 'rejected';
 
 export interface MeResponse {
   id: string;
   email: string;
   role: 'admin' | 'investigator';
 }
-
-export async function me() {
-  return request<MeResponse>('/auth/me');
-}
-
-export function logout() {
-  setToken(null);
-}
-
-// ─── Investigations ──────────────────────────────────────
 
 export interface Investigation {
   id: string;
@@ -102,14 +62,146 @@ export interface Investigation {
   updated_at: string;
 }
 
-export async function listInvestigations() {
-  return request<Investigation[]>('/investigations');
+export interface Entity {
+  id: string;
+  investigation_id: string;
+  display_name: string;
+  role: 'target' | 'related';
+  notes: string | null;
 }
 
-export async function createInvestigation(title: string, description?: string) {
-  return request<Investigation>(
-    '/investigations',
-    { method: 'POST' },
-    { title, description },
+export interface DataPoint {
+  id: string;
+  entity_id: string;
+  type: DataType;
+  value: string;
+  status: VerificationStatus;
+  confidence: number | null;
+  source_connector_id: string | null;
+  source_datapoint_id: string | null;
+  source_url: string | null;
+  notes: string | null;
+  extracted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GraphNode {
+  id: string;
+  kind: 'entity' | 'datapoint';
+  label: string;
+  data_type?: DataType;
+  status?: VerificationStatus;
+  confidence?: number | null;
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  connector_name?: string | null;
+  kind: 'pivot' | 'owns';
+}
+
+export interface Graph {
+  investigation_id: string;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+// ─── Auth ───────────────────────────────────────────
+
+export async function login(email: string, password: string) {
+  const form = new FormData();
+  form.set('username', email);
+  form.set('password', password);
+  const { access_token } = await request<{ access_token: string }>(
+    '/auth/login', { method: 'POST' }, form,
   );
+  setToken(access_token);
+  return access_token;
+}
+
+export const register = (email: string, password: string) =>
+  request<{ id: string; email: string }>('/auth/register', { method: 'POST' }, { email, password });
+
+export const me = () => request<MeResponse>('/auth/me');
+export const logout = () => setToken(null);
+
+// ─── Investigations ─────────────────────────────────
+
+export const listInvestigations = () => request<Investigation[]>('/investigations');
+export const getInvestigation = (id: string) => request<Investigation>(`/investigations/${id}`);
+export const createInvestigation = (title: string, description?: string) =>
+  request<Investigation>('/investigations', { method: 'POST' }, { title, description });
+export const deleteInvestigation = (id: string) =>
+  request<void>(`/investigations/${id}`, { method: 'DELETE' });
+
+// ─── Entities ───────────────────────────────────────
+
+export const listEntities = (investigationId: string) =>
+  request<Entity[]>(`/investigations/${investigationId}/entities`);
+export const createEntity = (investigationId: string, displayName: string, role: 'target' | 'related' = 'target') =>
+  request<Entity>(`/investigations/${investigationId}/entities`, { method: 'POST' }, { display_name: displayName, role });
+
+// ─── Datapoints ─────────────────────────────────────
+
+export const listDatapoints = (entityId: string) =>
+  request<DataPoint[]>(`/entities/${entityId}/datapoints`);
+export const createDatapoint = (entityId: string, type: DataType, value: string) =>
+  request<DataPoint>(`/entities/${entityId}/datapoints`, { method: 'POST' }, { type, value });
+export const updateDatapoint = (id: string, patch: Partial<Pick<DataPoint, 'status' | 'confidence' | 'notes'>>) =>
+  request<DataPoint>(`/datapoints/${id}`, { method: 'PATCH' }, patch);
+export const deleteDatapoint = (id: string) =>
+  request<void>(`/datapoints/${id}`, { method: 'DELETE' });
+
+export const pivot = (datapointId: string) =>
+  request<{ task_id: string }>(`/datapoints/${datapointId}/pivot`, { method: 'POST' });
+
+// ─── Graph ──────────────────────────────────────────
+
+export const getGraph = (investigationId: string) =>
+  request<Graph>(`/investigations/${investigationId}/graph`);
+
+// ─── WebSocket for live updates ─────────────────────
+
+export interface WsEvent {
+  type: string;
+  [k: string]: unknown;
+}
+
+export function openInvestigationSocket(
+  investigationId: string,
+  onMessage: (ev: WsEvent) => void,
+  onStatusChange?: (s: 'connecting' | 'open' | 'closed') => void,
+): () => void {
+  const token = getToken();
+  if (!token) throw new Error('Pas de session active');
+
+  const url = `${WS_URL}/ws/investigations/${investigationId}?token=${encodeURIComponent(token)}`;
+  let ws: WebSocket | null = null;
+  let closed = false;
+  let retry = 0;
+
+  const connect = () => {
+    onStatusChange?.('connecting');
+    ws = new WebSocket(url);
+    ws.onopen = () => { retry = 0; onStatusChange?.('open'); };
+    ws.onmessage = (e) => {
+      try { onMessage(JSON.parse(e.data) as WsEvent); }
+      catch { /* ignore non-JSON */ }
+    };
+    ws.onclose = () => {
+      onStatusChange?.('closed');
+      if (closed) return;
+      // Exponential back-off up to 10s
+      const delay = Math.min(10_000, 500 * 2 ** retry);
+      retry += 1;
+      setTimeout(connect, delay);
+    };
+    ws.onerror = () => { /* noop — onclose will handle */ };
+  };
+
+  connect();
+  return () => { closed = true; ws?.close(); };
 }
