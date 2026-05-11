@@ -5,12 +5,12 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
-from src.db.types import InvestigationStatus, pg_enum
+from src.db.types import AutoPivotMode, InvestigationStatus, pg_enum
 
 if TYPE_CHECKING:
     from src.models.entity import Entity
@@ -32,6 +32,23 @@ class Investigation(Base):
         default=InvestigationStatus.ACTIVE,
         nullable=False,
         index=True,
+    )
+
+    # ── Auto-pivot settings ────────────────────────────────
+    # `auto_pivot_mode` decides whether new findings are pivoted on their own:
+    #   - off:          never (user must click Pivoter)
+    #   - manual_only:  only when the user validates a finding
+    #   - auto:         every new finding above min_confidence triggers a pivot
+    auto_pivot_mode: Mapped[AutoPivotMode] = mapped_column(
+        pg_enum(AutoPivotMode, name="auto_pivot_mode"),
+        default=AutoPivotMode.AUTO,    # ← aggressive by default per user spec
+        nullable=False,
+    )
+    auto_pivot_min_confidence: Mapped[float] = mapped_column(
+        Float, default=0.75, nullable=False,
+    )
+    auto_pivot_max_depth: Mapped[int] = mapped_column(
+        Integer, default=3, nullable=False,
     )
 
     owner_id: Mapped[uuid.UUID] = mapped_column(

@@ -17,6 +17,7 @@ from src.routes import (
     identity,
     investigations,
     pivot,
+    synthesis,
     websocket,
 )
 
@@ -32,7 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Poireaut API",
     description="OSINT investigation platform — pivot, verify, weave the web.",
-    version="0.7.1",
+    version="0.8.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -53,6 +54,7 @@ app.include_router(entities.router)
 app.include_router(datapoints.router)
 app.include_router(pivot.router)
 app.include_router(identity.router)
+app.include_router(synthesis.router)
 app.include_router(connectors.router)
 app.include_router(websocket.router)
 

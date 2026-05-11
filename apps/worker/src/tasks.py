@@ -47,6 +47,7 @@ from src.db.types import (
 from src.models.connector import Connector, ConnectorRun
 from src.models.datapoint import DataPoint
 from src.models.entity import Entity
+from src.models.investigation import Investigation
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -221,7 +222,9 @@ async def _scrape_profile(datapoint_id: uuid.UUID) -> dict[str, Any]:
         db.add(run)
 
         for finding in result.findings:
-            new_dp = _finding_to_datapoint(finding, dp, db_connector.id)
+            new_dp = _finding_to_datapoint(
+                finding, dp, db_connector.id, depth=dp.pivot_depth + 1,
+            )
             db.add(new_dp)
             if investigation_id is not None:
                 await db.flush()
@@ -268,6 +271,12 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
         entity = await db.get(Entity, dp.entity_id)
         investigation_id = entity.investigation_id if entity else None
 
+        # Load the investigation upfront — we need its auto_pivot settings
+        # to drive the chaining decision after each finding lands.
+        investigation = None
+        if investigation_id is not None:
+            investigation = await db.get(Investigation, investigation_id)
+
         connectors = registry.connectors_for(dp.type)
         if not connectors:
             logger.info("No connectors accept %s — nothing to do", dp.type)
@@ -278,12 +287,16 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                 "findings_count": 0,
             }
 
+        # Stamp the source datapoint as "auto-pivoted now" — idempotency
+        # marker. Even manual pivots set this, so the same datapoint can't
+        # be picked up again as a fresh candidate by future cron sweeps.
+        dp.auto_pivoted_at = datetime.now(timezone.utc)
+
         # Make sure every connector exists in the DB (upsert on first sight).
         db_connectors = {c.name: c for c in await _sync_connectors_to_db(db, connectors)}
         await db.flush()
 
-        # Announce: pivot is starting. The UI uses this to show a spinner on
-        # the source datapoint and a global "1 pivot en cours" indicator.
+        # Announce: pivot is starting.
         if investigation_id is not None:
             _publish_investigation_event(
                 investigation_id,
@@ -292,18 +305,23 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                     "investigation_id": str(investigation_id),
                     "datapoint_id": str(dp.id),
                     "connectors": [c.name for c in connectors],
+                    "depth": dp.pivot_depth,
                 },
             )
 
-        # Run every connector in parallel. Each returns (connector_name, ConnectorResult).
-        coros = [
-            _invoke_one(c.name, c, dp.value, dp.type)
-            for c in connectors
-        ]
+        # Run every connector in parallel.
+        coros = [_invoke_one(c.name, c, dp.value, dp.type) for c in connectors]
         results = await asyncio.gather(*coros, return_exceptions=True)
+
+        # Children inherit depth = parent.depth + 1
+        child_depth = dp.pivot_depth + 1
 
         total_findings = 0
         per_connector: list[dict[str, Any]] = []
+        # Track auto-pivot enqueues to publish in pivot.finished
+        chained: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+
         for item in results:
             if isinstance(item, BaseException):
                 logger.exception("Connector raised: %s", item)
@@ -318,7 +336,7 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                 connector_id=db_connector.id,
                 input_datapoint_id=dp.id,
                 status=(RunStatus.SUCCESS if result.ok else RunStatus.FAILED),
-                started_at=datetime.now(timezone.utc),  # approx — we don't track precisely
+                started_at=datetime.now(timezone.utc),
                 finished_at=datetime.now(timezone.utc),
                 duration_ms=duration_ms,
                 result_count=len(result.findings),
@@ -327,7 +345,6 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
             )
             db.add(run)
 
-            # Remember what each connector did for the final pivot event.
             per_connector.append({
                 "connector": connector_name,
                 "findings_count": len(result.findings),
@@ -335,15 +352,17 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                 "duration_ms": duration_ms,
             })
 
-            # Persist each finding as a new DataPoint, pointing back at the source
+            # Persist each finding, then ask the auto-pivot policy whether
+            # to chain it.
             for finding in result.findings:
-                new_dp = _finding_to_datapoint(finding, dp, db_connector.id)
+                new_dp = _finding_to_datapoint(
+                    finding, dp, db_connector.id, depth=child_depth,
+                )
                 db.add(new_dp)
                 total_findings += 1
+                await db.flush()  # need new_dp.id for events + auto-pivot
 
                 if investigation_id is not None:
-                    # We flush so new_dp.id is available before publishing
-                    await db.flush()
                     _publish_investigation_event(
                         investigation_id,
                         {
@@ -356,6 +375,32 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                         },
                     )
 
+                # ── Auto-pivot decision ──
+                if investigation is not None:
+                    from src._autopivot import should_auto_pivot
+                    decision = await should_auto_pivot(
+                        db=db, investigation=investigation, new_dp=new_dp,
+                    )
+                    if decision.enqueue:
+                        # Send the chain task on its way. We use celery's
+                        # send_task to avoid an import cycle on the task fn.
+                        celery.send_task(
+                            "src.tasks.run_connectors_for_datapoint",
+                            args=[str(new_dp.id)],
+                        )
+                        chained.append({
+                            "datapoint_id": str(new_dp.id),
+                            "type": new_dp.type.value,
+                            "value": new_dp.value[:80],
+                            "confidence": new_dp.confidence,
+                        })
+                    else:
+                        new_dp.auto_pivot_blocked_reason = decision.reason
+                        skipped.append({
+                            "datapoint_id": str(new_dp.id),
+                            "reason": decision.reason,
+                        })
+
         await db.commit()
 
         if investigation_id is not None:
@@ -367,9 +412,11 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                     "datapoint_id": str(dp.id),
                     "findings_count": total_findings,
                     "connectors_run": len(connectors),
-                    # Per-connector breakdown so the UI can explain a 0-findings
-                    # outcome with an actionable "why": HTTP 403, no snapshot, etc.
+                    "depth": dp.pivot_depth,
                     "per_connector": per_connector,
+                    # Auto-pivot summary so the UI can show "3 chained, 12 stopped"
+                    "auto_pivot_chained": len(chained),
+                    "auto_pivot_skipped": len(skipped),
                 },
             )
 
@@ -378,6 +425,8 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
             "input_type": dp.type.value,
             "connectors_run": len(connectors),
             "findings_count": total_findings,
+            "auto_pivot_chained": len(chained),
+            "auto_pivot_skipped": len(skipped),
         }
 
 
@@ -430,7 +479,8 @@ async def _sync_connectors_to_db(db: AsyncSession, connectors: list) -> list[Con
 
 
 def _finding_to_datapoint(
-    finding: Finding, source_dp: DataPoint, connector_id: uuid.UUID
+    finding: Finding, source_dp: DataPoint, connector_id: uuid.UUID,
+    *, depth: int,
 ) -> DataPoint:
     return DataPoint(
         entity_id=source_dp.entity_id,
@@ -444,6 +494,7 @@ def _finding_to_datapoint(
         raw_data=finding.raw,
         extracted_at=finding.extracted_at,
         notes=finding.notes,
+        pivot_depth=depth,
     )
 
 

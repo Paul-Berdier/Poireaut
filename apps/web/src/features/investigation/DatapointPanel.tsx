@@ -105,7 +105,21 @@ export default function DatapointPanel({ datapoint, isPivoting, onChange, onClos
           <dt>Extrait le</dt>
           <dd>{new Date(datapoint.extracted_at).toLocaleString('fr-FR')}</dd>
         </>)}
+
+        {datapoint.pivot_depth !== undefined && datapoint.pivot_depth > 0 && (<>
+          <dt>Profondeur</dt>
+          <dd>{datapoint.pivot_depth} hop{datapoint.pivot_depth > 1 ? 's' : ''} depuis le seed</dd>
+        </>)}
+
+        {datapoint.auto_pivot_blocked_reason && (<>
+          <dt>Auto-pivot</dt>
+          <dd className="dp-panel__blocked">
+            ⛔ {datapoint.auto_pivot_blocked_reason}
+          </dd>
+        </>)}
       </dl>
+
+      <ConfidenceSignals datapoint={datapoint} />
 
       {datapoint.notes && (
         <div className="dp-panel__notes">{datapoint.notes}</div>
@@ -159,4 +173,42 @@ export default function DatapointPanel({ datapoint, isPivoting, onChange, onClos
 function safeHost(url: string): string {
   try { return new URL(url).host; }
   catch { return url; }
+}
+
+interface SignalRow {
+  name: string;
+  weight: number;
+  reason: string;
+}
+
+function ConfidenceSignals({ datapoint }: { datapoint: DataPoint }) {
+  // The raw_data dict contains _signals when the connector composed
+  // its confidence with the new system. Older datapoints don't have it.
+  const rawData = datapoint.raw_data as { _signals?: SignalRow[] } | null | undefined;
+  const signals = rawData?._signals;
+  if (!signals || signals.length === 0) return null;
+
+  return (
+    <details className="signals" open={signals.length > 0 && signals.length < 5}>
+      <summary className="signals__head">
+        Détail de la confiance ({signals.length} signal{signals.length > 1 ? 'aux' : ''})
+      </summary>
+      <ul className="signals__list">
+        {signals.map((s, i) => {
+          const positive = s.weight >= 0;
+          return (
+            <li key={i} className={`signal signal--${positive ? 'pos' : 'neg'}`}>
+              <div className="signal__weight">
+                {positive ? '+' : ''}{Math.round(s.weight * 100)}%
+              </div>
+              <div className="signal__body">
+                <div className="signal__name">{s.name}</div>
+                <div className="signal__reason">{s.reason}</div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
 }

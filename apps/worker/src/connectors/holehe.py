@@ -136,16 +136,15 @@ class HoleheConnector(BaseConnector):
         findings: list[Finding] = []
         for entry in raw_hits:
             domain = (entry.get("domain") or entry["_site"]).strip().lower()
-            conf = _score_holehe_hit(entry, domain)
 
             # Build a profile URL when we can, otherwise the domain root.
             # Current implementation: we don't know the target's username,
             # so the best "source URL" is the domain root itself — gives the
             # investigator a one-click way to visit the site and look up.
             source_url = f"https://{domain}"
-            # For the displayed `value` we want something human: "gmail.com"
-            # not "https://gmail.com/" — the source_url already has the link.
             value = domain
+
+            cb = _build_holehe_confidence(entry, domain)
 
             notes_parts = [f"Compte détecté sur {domain}"]
             if entry.get("rateLimit"):
@@ -161,10 +160,10 @@ class HoleheConnector(BaseConnector):
                 Finding(
                     data_type=DataType.ACCOUNT,
                     value=value,
-                    confidence=round(conf, 2),
+                    confidence=round(cb.compose(), 2),
                     source_url=source_url,
                     extracted_at=now_utc(),
-                    raw=entry,
+                    raw={**entry, "_signals": cb.to_raw()},
                     notes=" · ".join(notes_parts),
                 )
             )
@@ -187,32 +186,35 @@ class HoleheConnector(BaseConnector):
             return HealthStatus.DEAD
 
 
-def _score_holehe_hit(entry: dict, domain: str) -> float:
-    """Produce a confidence in [0.2, 0.97] from Holehe's hit metadata.
+def _build_holehe_confidence(entry: dict, domain: str):
+    """Compose a confidence build from Holehe's per-hit metadata.
 
-    We start from a site-specific prior (LOW / NORMAL / HIGH) then apply
-    multipliers that reflect Holehe's own signals. Values stay roughly
-    bucket-spaced so the UI shows distinct percentages (not all 85%).
+    Each signal is named so the UI can show which factors moved the score.
+    The base prior comes from site reliability priors we maintain in code.
     """
-    # Base by site reliability
+    from src.connectors._signals import build
+
     if domain in HIGH_TRUST_SITES:
-        base = 0.85
+        cb = build("holehe.site_high_trust", 0.85,
+                   f"Site reconnu fiable ({domain})")
     elif domain in LOW_TRUST_SITES:
-        base = 0.5
+        cb = build("holehe.site_low_trust", 0.50,
+                   f"⚠️ Site à fort taux de faux positifs ({domain})")
     else:
-        base = 0.7
+        cb = build("holehe.site_neutral", 0.70,
+                   f"Détection sur {domain}")
 
-    # Rate-limit drops trust — we got a "maybe" not a "yes".
     if entry.get("rateLimit"):
-        base -= 0.2
+        cb.add("holehe.rate_limited", -0.20,
+               "Site rate-limité, réponse moins fiable")
 
-    # Leaked recovery data is strong evidence the account exists.
     if entry.get("emailrecovery") or entry.get("phoneNumber"):
-        base = max(base, 0.92)
+        cb.add("holehe.recovery_data_leaked", 0.15,
+               "Données de récupération révélées (preuve forte)")
 
-    # Extra metadata like "registered since YYYY" is also a strong positive.
     others = entry.get("others") or {}
     if isinstance(others, dict) and others:
-        base += 0.05
+        cb.add("holehe.extra_metadata", 0.05,
+               "Métadonnées supplémentaires fournies par le site")
 
-    return max(0.2, min(0.97, base))
+    return cb

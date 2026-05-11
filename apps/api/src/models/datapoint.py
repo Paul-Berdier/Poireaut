@@ -16,9 +16,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
+    Integer,
     String,
     Text,
     func,
@@ -87,6 +89,24 @@ class DataPoint(Base):
 
     extracted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    # ─── Auto-pivot bookkeeping ───────────────────────────────────
+    # How many auto-pivot hops it took to reach this datapoint. 0 for
+    # user-typed seeds and manually-pivoted children. Used by the
+    # orchestrator to enforce the max-depth cap.
+    pivot_depth: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    # When the orchestrator dispatched an auto-pivot using this datapoint
+    # as input. Null = never auto-pivoted; we use this for idempotency
+    # so the same datapoint isn't re-pivoted on every cron tick.
+    auto_pivoted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # If auto-pivot was attempted but skipped, store why (debugging + UI).
+    auto_pivot_blocked_reason: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
     )
 
     # ─── Validation audit ──────────────────────────────────────────

@@ -127,6 +127,7 @@ async def get_graph(
                     data_type=dp.type,
                     status=dp.status,
                     confidence=dp.confidence,
+                    pivot_depth=dp.pivot_depth,
                 )
             )
             # Entity → datapoint (ownership link)

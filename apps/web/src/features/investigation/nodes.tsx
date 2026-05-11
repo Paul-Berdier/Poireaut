@@ -33,6 +33,7 @@ export interface DataPointNodeData {
   status: VerificationStatus;
   confidence: number | null;
   pivoting?: boolean;
+  depth?: number;            // pivot_depth — 0 for seeds, N for auto-pivots
   onOpen?: () => void;
   selected?: boolean;
 }
@@ -48,13 +49,19 @@ export function DataPointNode({ data }: { data: DataPointNodeData }) {
   ].filter(Boolean).join(' ');
 
   // For PHOTO datapoints, use the URL as an actual image thumbnail.
-  // Browsers that can't load the image (CORS / dead URL) trigger onError
-  // → we fall back to the generic Image icon.
   const isImage = data.dataType === 'photo' && /^https?:\/\//i.test(data.label);
 
   return (
     <button className={classes} onClick={data.onOpen} type="button">
       <Handle type="target" position={Position.Top} />
+      {data.depth !== undefined && data.depth > 0 && (
+        <span
+          className="dp-node__depth"
+          title={`Profondeur d'auto-pivot : ${data.depth}`}
+        >
+          L{data.depth}
+        </span>
+      )}
       <div className="dp-node__icon">
         {data.pivoting ? (
           <Loader2 size={14} className="dp-node__spin" />

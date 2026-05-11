@@ -224,6 +224,7 @@ export function layoutGraph(graph: Graph, opts: LayoutOptions): LayoutResult {
         status: n.status!,
         confidence: n.confidence ?? null,
         pivoting: pivotingIds.has(n.id),
+        depth: n.pivot_depth,
         onOpen: () => onOpenDatapoint(n.id),
         selected: selectedId === n.id,
       },

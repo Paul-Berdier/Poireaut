@@ -31,6 +31,8 @@ import { layoutGraph } from './layout';
 import DatapointPanel from './DatapointPanel';
 import QuickAddBar from './QuickAddBar';
 import FicheView from './FicheView';
+import SettingsPanel from './SettingsPanel';
+import SynthesisModal from './SynthesisModal';
 
 type WsStatus = 'connecting' | 'open' | 'closed';
 type ViewTab = 'web' | 'fiche';
@@ -54,6 +56,10 @@ export default function InvestigationView({ investigationId }: Props) {
   const [tab, setTab] = useState<ViewTab>('web');
   const [filter, setFilter] = useState<GraphFilter>('all');
   const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
+
+  // Side panels / modals
+  const [showSettings, setShowSettings] = useState(false);
+  const [showSynthesis, setShowSynthesis] = useState(false);
 
   // Pivots currently running, keyed by source datapoint id.
   // WS events pivot.started / pivot.finished toggle this set.
@@ -113,6 +119,7 @@ export default function InvestigationView({ investigationId }: Props) {
         } else if (ev.type === 'pivot.finished') {
           const id = String(ev.datapoint_id ?? '');
           const n = Number(ev.findings_count ?? 0);
+          const chained = Number(ev.auto_pivot_chained ?? 0);
           setPivotingIds((prev) => {
             if (!prev.has(id)) return prev;
             const next = new Set(prev);
@@ -122,7 +129,10 @@ export default function InvestigationView({ investigationId }: Props) {
           const perConnector = (ev.per_connector as Array<{
             connector: string; findings_count: number; error: string | null;
           }> | undefined) ?? [];
-          showToast(buildPivotFinishedMessage(n, perConnector), n > 0 ? 4000 : 7000);
+          showToast(
+            buildPivotFinishedMessage(n, perConnector, chained),
+            n > 0 || chained > 0 ? 4000 : 7000,
+          );
           refreshGraph();
         } else if (ev.type === 'datapoint.created') {
           // Incremental refresh — just re-fetch the graph. Cheaper than
@@ -234,6 +244,14 @@ export default function InvestigationView({ investigationId }: Props) {
                 : wsStatus === 'connecting' ? 'Connexion…'
                   : 'Déconnecté'}
             </span>
+            <span>·</span>
+            <span className={`autopivot-tag autopivot-tag--${investigation.auto_pivot_mode}`}>
+              Auto-pivot : {
+                investigation.auto_pivot_mode === 'auto' ? `auto (≥${Math.round(investigation.auto_pivot_min_confidence * 100)}%, ${investigation.auto_pivot_max_depth} hops)`
+                  : investigation.auto_pivot_mode === 'manual_only' ? 'manuel uniquement'
+                    : 'désactivé'
+              }
+            </span>
             {pivotCount > 0 && (
               <>
                 <span>·</span>
@@ -243,6 +261,23 @@ export default function InvestigationView({ investigationId }: Props) {
               </>
             )}
           </div>
+        </div>
+
+        <div className="investigation__header-actions">
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => setShowSynthesis(true)}
+            title="Synthèse IA de l'enquête"
+          >
+            🧠 Synthèse
+          </button>
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => setShowSettings(true)}
+            title="Paramètres de l'enquête"
+          >
+            ⚙️ Paramètres
+          </button>
         </div>
 
         <div className="investigation__tabs" role="tablist">
@@ -370,6 +405,25 @@ export default function InvestigationView({ investigationId }: Props) {
           ))}
         </div>
       )}
+
+      {showSettings && investigation && (
+        <div className="overlay" onClick={() => setShowSettings(false)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <SettingsPanel
+              investigation={investigation}
+              onUpdated={(next) => setInvestigation(next)}
+              onClose={() => setShowSettings(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {showSynthesis && (
+        <SynthesisModal
+          investigationId={investigationId}
+          onClose={() => setShowSynthesis(false)}
+        />
+      )}
     </main>
   );
 }
@@ -379,24 +433,28 @@ export default function InvestigationView({ investigationId }: Props) {
 function buildPivotFinishedMessage(
   total: number,
   perConnector: Array<{ connector: string; findings_count: number; error: string | null }>,
+  chained: number = 0,
 ): string {
   const headline = total > 0
     ? `Pivot terminé · ${total} nouveau${total > 1 ? 'x' : ''} résultat${total > 1 ? 's' : ''}`
     : 'Pivot terminé · aucun résultat';
 
-  if (perConnector.length === 0) return headline;
-
-  // Line per connector: "• holehe: 12 résultats" or "• profile_scraper: HTTP 403 (accès refusé)"
-  const lines = perConnector.map((c) => {
-    if (c.error) {
-      return `• ${c.connector}: ${shorten(c.error)}`;
+  const lines: string[] = [];
+  if (perConnector.length > 0) {
+    for (const c of perConnector) {
+      if (c.error) {
+        lines.push(`• ${c.connector}: ${shorten(c.error)}`);
+      } else if (c.findings_count === 0) {
+        lines.push(`• ${c.connector}: 0 résultat`);
+      } else {
+        lines.push(`• ${c.connector}: ${c.findings_count} résultat${c.findings_count > 1 ? 's' : ''}`);
+      }
     }
-    if (c.findings_count === 0) {
-      return `• ${c.connector}: 0 résultat`;
-    }
-    return `• ${c.connector}: ${c.findings_count} résultat${c.findings_count > 1 ? 's' : ''}`;
-  });
-  return [headline, ...lines].join('\n');
+  }
+  if (chained > 0) {
+    lines.push(`↳ ${chained} pivot${chained > 1 ? 's' : ''} automatique${chained > 1 ? 's' : ''} enchaîné${chained > 1 ? 's' : ''}`);
+  }
+  return lines.length > 0 ? [headline, ...lines].join('\n') : headline;
 }
 
 function shorten(msg: string, max = 80): string {

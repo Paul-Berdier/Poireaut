@@ -42,6 +42,17 @@ class InvestigationStatus(str, Enum):
     ARCHIVED = "archived"
 
 
+class AutoPivotMode(str, Enum):
+    """How aggressively new findings are pivoted automatically.
+
+    Modes are mutually exclusive; the user can change a case's mode any time
+    from the investigation settings panel.
+    """
+    OFF = "off"                   # never auto-pivot
+    MANUAL_ONLY = "manual_only"   # only after the user validates a finding
+    AUTO = "auto"                 # any finding above min_confidence
+
+
 class EntityRole(str, Enum):
     """Where this entity stands in the investigation."""
 

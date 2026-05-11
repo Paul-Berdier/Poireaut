@@ -58,6 +58,7 @@ class GraphNode(BaseModel):
     data_type: DataType | None = None
     status: VerificationStatus | None = None
     confidence: float | None = None
+    pivot_depth: int | None = None   # 0 = seed, N = N-hop auto-pivot
 
 
 class GraphEdge(BaseModel):

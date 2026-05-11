@@ -53,6 +53,8 @@ export interface MeResponse {
   role: 'admin' | 'investigator';
 }
 
+export type AutoPivotMode = 'off' | 'manual_only' | 'auto';
+
 export interface Investigation {
   id: string;
   title: string;
@@ -60,6 +62,9 @@ export interface Investigation {
   status: 'active' | 'closed' | 'archived';
   created_at: string;
   updated_at: string;
+  auto_pivot_mode: AutoPivotMode;
+  auto_pivot_min_confidence: number;
+  auto_pivot_max_depth: number;
 }
 
 export interface Entity {
@@ -84,6 +89,10 @@ export interface DataPoint {
   extracted_at: string | null;
   created_at: string;
   updated_at: string;
+  pivot_depth?: number;                         // 0 = seed, N = auto-pivot depth
+  auto_pivoted_at?: string | null;
+  auto_pivot_blocked_reason?: string | null;
+  raw_data?: Record<string, unknown> | null;     // includes _signals when present
 }
 
 export interface GraphNode {
@@ -93,6 +102,7 @@ export interface GraphNode {
   data_type?: DataType;
   status?: VerificationStatus;
   confidence?: number | null;
+  pivot_depth?: number;     // depth from seed; 0 = seed, N = N-hop auto-pivot
 }
 
 export interface GraphEdge {
@@ -136,6 +146,31 @@ export const createInvestigation = (title: string, description?: string) =>
   request<Investigation>('/investigations', { method: 'POST' }, { title, description });
 export const deleteInvestigation = (id: string) =>
   request<void>(`/investigations/${id}`, { method: 'DELETE' });
+
+export interface InvestigationPatch {
+  title?: string;
+  description?: string;
+  status?: 'active' | 'closed' | 'archived';
+  auto_pivot_mode?: AutoPivotMode;
+  auto_pivot_min_confidence?: number;
+  auto_pivot_max_depth?: number;
+}
+export const updateInvestigation = (id: string, patch: InvestigationPatch) =>
+  request<Investigation>(`/investigations/${id}`, { method: 'PATCH' }, patch);
+
+// ─── Synthesis (OpenAI) ─────────────────────────────
+
+export interface SynthesisResponse {
+  summary: string;
+  datapoints_used: number;
+  model: string;
+}
+export const synthesizeInvestigation = (id: string, onlyValidated = true, maxDatapoints = 80) =>
+  request<SynthesisResponse>(
+    `/investigations/${id}/synthesize`,
+    { method: 'POST' },
+    { only_validated: onlyValidated, max_datapoints: maxDatapoints },
+  );
 
 // ─── Entities ───────────────────────────────────────
 

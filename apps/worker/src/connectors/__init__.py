@@ -17,5 +17,10 @@ from src.connectors import crtsh             # noqa: F401
 from src.connectors import wayback           # noqa: F401
 from src.connectors import profile_scraper   # noqa: F401
 from src.connectors import reverse_image     # noqa: F401
+from src.connectors import ipinfo            # noqa: F401
+from src.connectors import numverify         # noqa: F401
+from src.connectors import hunter            # noqa: F401
+from src.connectors import shodan            # noqa: F401
+from src.connectors import facecheck         # noqa: F401
 
 __all__ = ["BaseConnector", "ConnectorResult", "Finding", "registry"]
