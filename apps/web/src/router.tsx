@@ -1,14 +1,12 @@
 /**
  * Tiny hash-based router.
  *
- * Avoids adding react-router just to switch between /dashboard and
- * /investigations/:id. Uses the URL hash so it also works on Railway's
- * static hosting without needing SPA rewrite rules.
- *
  * Routes:
  *   #/                          → landing
  *   #/login                     → auth
  *   #/dashboard                 → dashboard
+ *   #/account                   → user account & API keys
+ *   #/admin                     → connectors page
  *   #/investigations/{uuid}     → investigation canvas
  */
 import { useEffect, useState } from 'react';
@@ -17,6 +15,7 @@ export type Route =
   | { name: 'landing' }
   | { name: 'login' }
   | { name: 'dashboard' }
+  | { name: 'account' }
   | { name: 'investigation'; id: string }
   | { name: 'admin' };
 
@@ -25,6 +24,7 @@ function parse(hash: string): Route {
   if (h === '' || h === '/') return { name: 'landing' };
   if (h === 'login') return { name: 'login' };
   if (h === 'dashboard') return { name: 'dashboard' };
+  if (h === 'account') return { name: 'account' };
   if (h === 'admin') return { name: 'admin' };
   const m = h.match(/^investigations\/([0-9a-f-]+)$/i);
   if (m) return { name: 'investigation', id: m[1] };
@@ -54,6 +54,7 @@ export function toHash(r: Route): string {
     case 'landing': return '#/';
     case 'login': return '#/login';
     case 'dashboard': return '#/dashboard';
+    case 'account': return '#/account';
     case 'admin': return '#/admin';
     case 'investigation': return `#/investigations/${r.id}`;
   }

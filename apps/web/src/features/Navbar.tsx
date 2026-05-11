@@ -7,7 +7,9 @@ interface Props {
 }
 
 export default function Navbar({ user, onLogout }: Props) {
-  const [, navigate] = useRoute();
+  const [route, navigate] = useRoute();
+  const onAccountPage = route.name === 'account';
+
   return (
     <nav className="landing__nav">
       <button
@@ -19,14 +21,22 @@ export default function Navbar({ user, onLogout }: Props) {
         <span>Poireaut</span>
       </button>
       <div className="landing__nav-right">
-        <span className="landing__nav-step">v0.5.0 · Étape 5 / 5</span>
         {user && (
           <>
             <button
               className="btn btn--ghost btn--sm"
               onClick={() => navigate({ name: 'admin' })}
+              title="Connecteurs"
             >
               Connecteurs
+            </button>
+            <button
+              className={`btn btn--ghost btn--sm ${onAccountPage ? 'btn--active' : ''}`}
+              onClick={() => navigate({ name: 'account' })}
+              title="Mon compte et clés API"
+              aria-label="Mon compte"
+            >
+              ⚙️
             </button>
             <span className="landing__nav-user">{user.email}</span>
             <button className="btn btn--ghost btn--sm" onClick={onLogout}>

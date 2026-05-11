@@ -7,6 +7,7 @@ import AuthView from './features/auth/AuthView';
 import Dashboard from './features/dashboard/Dashboard';
 import InvestigationView from './features/investigation/InvestigationView';
 import AdminView from './features/admin/AdminView';
+import AccountView from './features/account/AccountView';
 
 type HealthState = 'checking' | 'ok' | 'down';
 
@@ -80,7 +81,8 @@ export default function App() {
   };
 
   // Route guards
-  const needsAuth = route.name === 'dashboard' || route.name === 'investigation' || route.name === 'admin';
+  const needsAuth = route.name === 'dashboard' || route.name === 'investigation'
+    || route.name === 'admin' || route.name === 'account';
   if (bootstrapping) {
     return <div className="landing"><div className="panel__empty">Chargement…</div></div>;
   }
@@ -108,6 +110,7 @@ export default function App() {
         <InvestigationView investigationId={route.id} />
       )}
       {route.name === 'admin' && user && <AdminView />}
+      {route.name === 'account' && user && <AccountView />}
 
       <SystemCheck state={health} />
     </div>

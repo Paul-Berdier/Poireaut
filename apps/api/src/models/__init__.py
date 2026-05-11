@@ -4,6 +4,7 @@ Importing every model here is crucial — Alembic's autogenerate only detects
 tables that are attached to the Base.metadata, which requires the model class
 to have been *imported* by the time env.py calls it.
 """
+from src.models.api_key import ApiKey
 from src.models.connector import Connector, ConnectorRun
 from src.models.datapoint import DataPoint
 from src.models.entity import Entity
@@ -17,4 +18,5 @@ __all__ = [
     "DataPoint",
     "Connector",
     "ConnectorRun",
+    "ApiKey",
 ]

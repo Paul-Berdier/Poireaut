@@ -1,7 +1,7 @@
 {
   "name": "poireaut-web",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,12 +10,14 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "dagre": "^0.8.5",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "reactflow": "^11.11.4"
   },
   "devDependencies": {
+    "@types/dagre": "^0.7.52",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

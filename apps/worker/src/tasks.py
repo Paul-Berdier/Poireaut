@@ -54,17 +54,46 @@ settings = get_settings()
 
 
 # ─── Async DB session — scoped to the worker ────────────────────
-# The API has its own engine (src/db/session.py). The worker runs in a
-# different process, so we create our own to avoid sharing connections
-# across process boundaries.
+# The API has its own engine. The worker runs in a Celery prefork pool,
+# so the engine MUST be created inside each forked worker process — not
+# at module-import time, otherwise asyncpg connections from the parent
+# leak into children and break with "Future attached to a different loop"
+# on every other task. We use NullPool: each task gets a fresh connection,
+# closed at the end. ~10ms overhead, but no cross-loop hazard.
+#
+# The `worker_process_init` signal fires once when each forked worker
+# starts; that's where we recreate the engine cleanly.
 
-_engine = create_async_engine(
-    settings.database_url,
-    pool_pre_ping=True,
-    pool_size=3,
-    max_overflow=5,
-)
-_Session = async_sessionmaker(_engine, expire_on_commit=False)
+from celery.signals import worker_process_init
+from sqlalchemy.pool import NullPool
+
+_engine = None
+_Session = None
+
+
+def _make_engine_for_this_process():
+    global _engine, _Session
+    _engine = create_async_engine(
+        settings.database_url,
+        poolclass=NullPool,           # no pooled connections survive across tasks
+        pool_pre_ping=False,
+    )
+    _Session = async_sessionmaker(_engine, expire_on_commit=False)
+
+
+@worker_process_init.connect
+def _on_worker_process_init(**_):
+    """Recreate the async engine inside each forked worker."""
+    _make_engine_for_this_process()
+
+
+# Eager init for non-Celery contexts (unit tests, manual scripts):
+# if no worker fork has happened yet, _Session is None, so first task call
+# will build it lazily.
+def _get_session():
+    if _Session is None:
+        _make_engine_for_this_process()
+    return _Session
 
 
 # ─── Redis client for pub/sub ──────────────────────────────────
@@ -106,7 +135,7 @@ def healthcheck_all_connectors() -> dict[str, Any]:
 async def _healthcheck_all() -> dict[str, Any]:
     from src.connectors import registry
 
-    async with _Session() as db:
+    async with _get_session()() as db:
         connectors = registry.all()
         if not connectors:
             return {"checked": 0}
@@ -165,7 +194,7 @@ def scrape_profile_for_datapoint(datapoint_id: str) -> dict[str, Any]:
 async def _scrape_profile(datapoint_id: uuid.UUID) -> dict[str, Any]:
     from src.connectors import registry
 
-    async with _Session() as db:
+    async with _get_session()() as db:
         dp = await db.get(DataPoint, datapoint_id)
         if dp is None or not dp.source_url:
             return {"skipped": "no datapoint or no source_url"}
@@ -263,7 +292,7 @@ async def _scrape_profile(datapoint_id: uuid.UUID) -> dict[str, Any]:
 
 
 async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, Any]:
-    async with _Session() as db:
+    async with _get_session()() as db:
         dp = await db.get(DataPoint, datapoint_id)
         if dp is None:
             return {"error": "datapoint not found", "datapoint_id": str(datapoint_id)}
@@ -291,6 +320,13 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
         # marker. Even manual pivots set this, so the same datapoint can't
         # be picked up again as a fresh candidate by future cron sweeps.
         dp.auto_pivoted_at = datetime.now(timezone.utc)
+
+        # Inject the investigation owner's API keys as env vars for the
+        # duration of this task. Connectors continue to read os.getenv()
+        # — no per-connector changes needed. We restore the original env
+        # at the end so concurrent tasks for different users don't leak
+        # into each other.
+        env_override = await _load_user_api_keys_into_env(db, investigation)
 
         # Make sure every connector exists in the DB (upsert on first sight).
         db_connectors = {c.name: c for c in await _sync_connectors_to_db(db, connectors)}
@@ -420,6 +456,9 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
                 },
             )
 
+        # Restore env vars to what they were before this task started
+        _restore_env(env_override)
+
         return {
             "datapoint_id": str(datapoint_id),
             "input_type": dp.type.value,
@@ -428,6 +467,60 @@ async def _run_connectors_for_datapoint(datapoint_id: uuid.UUID) -> dict[str, An
             "auto_pivot_chained": len(chained),
             "auto_pivot_skipped": len(skipped),
         }
+
+
+async def _load_user_api_keys_into_env(db, investigation) -> dict[str, str | None]:
+    """Read the investigation owner's API keys from the DB and put them in
+    os.environ for the duration of this task. Returns the original values
+    so we can restore them via `_restore_env` at the end.
+
+    No-op if no investigation (manual scrape outside a case) or no key
+    rows exist for the owner.
+    """
+    import os
+    from sqlalchemy import select
+
+    if investigation is None:
+        return {}
+    try:
+        from src.models.api_key import ApiKey  # local import — model lives in API package
+    except ImportError:
+        # The worker container may not ship the ApiKey model; bail out
+        # quietly and let connectors fall back to env vars.
+        return {}
+
+    stmt = select(ApiKey).where(ApiKey.user_id == investigation.owner_id)
+    rows = list((await db.execute(stmt)).scalars().all())
+    if not rows:
+        return {}
+
+    original: dict[str, str | None] = {}
+    try:
+        from src.services.api_keys import decrypt_value  # type: ignore
+    except ImportError:
+        return {}
+
+    for row in rows:
+        env_name = f"{row.connector_name.upper()}_API_KEY"
+        env_alt = f"{row.connector_name.upper()}_API_TOKEN"
+        try:
+            plain = decrypt_value(row.encrypted_value)
+        except Exception:  # noqa: BLE001
+            continue
+        original[env_name] = os.environ.get(env_name)
+        original[env_alt] = os.environ.get(env_alt)
+        os.environ[env_name] = plain
+        os.environ[env_alt] = plain
+    return original
+
+
+def _restore_env(original: dict[str, str | None]) -> None:
+    import os
+    for k, v in original.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 # ─── Helpers ────────────────────────────────────────────────────

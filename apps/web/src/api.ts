@@ -172,6 +172,34 @@ export const synthesizeInvestigation = (id: string, onlyValidated = true, maxDat
     { only_validated: onlyValidated, max_datapoints: maxDatapoints },
   );
 
+// ─── API Keys ──────────────────────────────────────
+
+export type ApiKeyConnector =
+  | 'ipinfo' | 'numverify' | 'hunter' | 'shodan' | 'facecheck' | 'openai' | 'hibp';
+
+export interface ApiKeyOut {
+  connector_name: ApiKeyConnector;
+  masked_preview: string;
+  created_at: string;
+  last_used_at: string | null;
+  last_test_at: string | null;
+  last_test_ok: boolean | null;
+}
+
+export interface ApiKeyTestResult {
+  connector_name: string;
+  ok: boolean;
+  detail: string;
+}
+
+export const listApiKeys = () => request<ApiKeyOut[]>('/me/api-keys');
+export const setApiKey = (name: ApiKeyConnector, value: string) =>
+  request<ApiKeyOut>(`/me/api-keys/${name}`, { method: 'PUT' }, { value });
+export const deleteApiKey = (name: ApiKeyConnector) =>
+  request<void>(`/me/api-keys/${name}`, { method: 'DELETE' });
+export const testApiKey = (name: ApiKeyConnector) =>
+  request<ApiKeyTestResult>(`/me/api-keys/${name}/test`, { method: 'POST' });
+
 // ─── Entities ───────────────────────────────────────
 
 export const listEntities = (investigationId: string) =>

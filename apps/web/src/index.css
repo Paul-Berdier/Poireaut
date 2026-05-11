@@ -1860,3 +1860,241 @@ button { font-family: var(--font-body); cursor: pointer; }
   color: var(--danger);
   font-style: italic;
 }
+
+/* ═══════════════════════════════════════════════
+   v0.9 — Refonte toile + Page Compte
+   ═══════════════════════════════════════════════ */
+
+/* Edge color tokens for the new toile */
+:root {
+  --edge-pivot: rgba(45, 74, 43, 0.55);
+  --edge-owns: rgba(184, 160, 92, 0.35);
+  --edge-cluster: rgba(184, 160, 92, 0.7);
+}
+
+/* Cleaner edge default — Make dotted owns edges very subtle */
+.react-flow__edge-path { transition: stroke 0.15s ease, stroke-width 0.15s ease; }
+.react-flow__edge:hover .react-flow__edge-path { stroke-width: 2.5 !important; }
+
+/* Hide edge labels by default — too noisy. Surface as tooltip via title attr. */
+.react-flow__edge-text { display: none; }
+
+/* Smoother bezier curves */
+.react-flow__edge-smoothstep .react-flow__edge-path { stroke-linecap: round; }
+
+/* Make the React Flow controls panel match the art-deco theme */
+.react-flow__controls {
+  background: var(--cream);
+  border: 1px solid rgba(45, 74, 43, 0.15);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+.react-flow__controls-button {
+  background: transparent;
+  border-bottom: 1px solid rgba(45, 74, 43, 0.08);
+  color: var(--forest);
+}
+.react-flow__controls-button:hover {
+  background: rgba(184, 160, 92, 0.1);
+}
+
+/* Mini map style */
+.react-flow__minimap {
+  background: var(--cream-deep);
+  border: 1px solid rgba(45, 74, 43, 0.15);
+  border-radius: var(--r-md);
+}
+
+/* ═══════════════════════════════════════════════
+   ACCOUNT PAGE — profile + keys
+   ═══════════════════════════════════════════════ */
+.account-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.account-page__head { margin-bottom: var(--s-2); }
+.account-page__title {
+  font-family: var(--font-display);
+  font-size: 36px;
+  margin: 0;
+  color: var(--forest);
+  letter-spacing: -0.01em;
+}
+.account-page__tabs {
+  display: flex;
+  gap: var(--s-2);
+  border-bottom: 1px solid rgba(45, 74, 43, 0.12);
+  padding-bottom: 0;
+}
+.account-page__body { padding-top: var(--s-3); }
+
+.account-section { display: flex; flex-direction: column; gap: var(--s-4); }
+.account-section__intro {
+  display: flex; flex-direction: column; gap: var(--s-2);
+  max-width: 720px;
+}
+.account-section__title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  margin: 0;
+  color: var(--forest);
+}
+.account-section__lede {
+  font-size: 14px;
+  color: var(--ink);
+  opacity: 0.85;
+  line-height: 1.55;
+  margin: 0;
+}
+.account-section__notice {
+  background: rgba(45, 74, 43, 0.06);
+  border-left: 3px solid var(--forest);
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* ── Keys grid ── */
+.keys-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--s-3);
+}
+
+.key-card {
+  background: var(--cream);
+  border: 1px solid rgba(45, 74, 43, 0.12);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.key-card:hover { border-color: rgba(184, 160, 92, 0.5); }
+.key-card--configured {
+  border-color: rgba(45, 74, 43, 0.4);
+  background: linear-gradient(to bottom, var(--cream), rgba(184, 160, 92, 0.04));
+}
+
+.key-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+.key-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--forest);
+}
+.key-card__dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.key-card__dot--image { background: #b85e7a; }
+.key-card__dot--phone { background: #5ea0b8; }
+.key-card__dot--email { background: #b88a5e; }
+.key-card__dot--ip    { background: #6e9d6c; }
+.key-card__dot--ai    { background: #8a5eb8; }
+.key-card__dot--breach { background: #c25555; }
+
+.key-card__badge {
+  font-size: 10px;
+  background: rgba(45, 74, 43, 0.1);
+  color: var(--forest);
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.key-card__cost {
+  font-size: 11px;
+  color: var(--gold-deep);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.key-card__desc {
+  font-size: 13px;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.key-card__current {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  background: rgba(45, 74, 43, 0.05);
+  border-radius: var(--r-sm);
+}
+.key-card__preview {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--ink);
+}
+.key-card__status {
+  font-size: 11px;
+  margin-left: auto;
+}
+.key-card__status.is-ok { color: var(--ok); }
+.key-card__status.is-bad { color: var(--danger); }
+
+.key-card__editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.key-card__editor-actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.key-card__test-result {
+  font-size: 12px;
+  padding: var(--s-2) var(--s-3);
+  background: rgba(184, 160, 92, 0.1);
+  border-radius: var(--r-sm);
+  font-family: 'Courier New', monospace;
+}
+
+.key-card__actions {
+  display: flex;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: var(--s-2);
+}
+
+.key-card__signup {
+  margin-left: auto;
+  font-size: 11px !important;
+  color: var(--gold-deep) !important;
+}
+
+.btn--danger {
+  color: var(--danger) !important;
+  border-color: rgba(154, 59, 44, 0.3) !important;
+}
+.btn--danger:hover {
+  background: rgba(154, 59, 44, 0.08) !important;
+}
+.btn--active {
+  background: rgba(184, 160, 92, 0.15) !important;
+  border-color: var(--gold) !important;
+}
+

@@ -1,29 +1,31 @@
 /**
- * Graph layout for the spider web.
+ * Graph layout using dagre.
  *
- * Rules the layout obeys:
- *   1. Entity at top, seed datapoints on row 2, their children below, …
- *   2. When a datapoint has many same-connector children (default: >= 5),
- *      replace them with a single expandable cluster node. The cluster has
- *      a synthetic id like `cluster:{sourceId}:{connectorName}` and keeps
- *      track of its wrapped datapoint ids so callers can still select them.
- *   3. A filter predicate can hide datapoints (typically to show only
- *      validated ones). Hidden items don't contribute to cluster counts
- *      either — they're just gone from the graph.
+ * Why dagre: the previous BFS-based layout produced criss-crossing edges
+ * when chains branched. Dagre is a proven graph layout library that
+ * minimizes edge crossings and gives us a tidy top-down tree even on
+ * complex investigations.
  *
- * The function returns the react-flow node/edge arrays *and* the meta info
- * the UI needs to render the cluster expand panel (what's inside each
- * cluster, etc.).
+ * Rules:
+ *   1. Entity node at the top (rank 0)
+ *   2. Datapoints flow down by pivot_depth
+ *   3. Edges "owns" (entity → datapoint) are hidden — entity ownership
+ *      is implicit and cluttered the canvas.
+ *   4. When a datapoint has many same-connector children (≥ CLUSTER_THRESHOLD),
+ *      they're replaced with a single expandable cluster node.
+ *   5. A filter predicate can hide datapoints (typically validated-only).
  */
-import type { Graph, GraphNode } from '../../api';
+import dagre from 'dagre';
 import type { Edge, Node } from 'reactflow';
+import { MarkerType } from 'reactflow';
+import type { Graph, GraphNode } from '../../api';
 
 // ── Tunables ────────────────────────────────────────
-const ENTITY_Y = 0;
-const FIRST_ROW_Y = 180;
-const ROW_SPACING = 170;
-const MIN_H_SPACING = 220;
-const CLUSTER_THRESHOLD = 5;   // group when a pivot produced >= this many findings
+const NODE_WIDTH = 240;
+const NODE_HEIGHT = 70;
+const RANK_SEP = 90;
+const NODE_SEP = 50;
+const CLUSTER_THRESHOLD = 5;
 
 // ── Types ───────────────────────────────────────────
 
@@ -39,8 +41,8 @@ export interface LayoutOptions {
 export interface LayoutResult {
   nodes: Node[];
   edges: Edge[];
-  clusters: Map<string, ClusterInfo>;   // cluster key → contents
-  hiddenClusterIds: Set<string>;         // datapoint ids hidden behind a cluster
+  clusters: Map<string, ClusterInfo>;
+  hiddenClusterIds: Set<string>;
 }
 
 export interface ClusterInfo {
@@ -48,273 +50,184 @@ export interface ClusterInfo {
   connectorName: string;
   sourceDatapointId: string;
   count: number;
-  validated: number;
-  datapointIds: string[];
+  childIds: string[];
+  representativeType: string;
 }
 
-// ── Implementation ──────────────────────────────────
+export function layoutGraph(
+  graph: Graph,
+  opts: LayoutOptions,
+): LayoutResult {
+  const { filter } = opts;
 
-export function layoutGraph(graph: Graph, opts: LayoutOptions): LayoutResult {
-  const {
-    selectedId, pivotingIds, onOpenDatapoint, onToggleCluster,
-    expandedClusters, filter,
-  } = opts;
+  const visibleNodes = graph.nodes.filter((n) => {
+    if (n.kind !== 'datapoint') return true;
+    return !filter || filter(n);
+  });
+  const visibleIds = new Set(visibleNodes.map((n) => n.id));
 
-  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  // Detect clusters: groups of siblings (same source, same connector)
+  const childrenBySource = new Map<string, GraphNode[]>();
+  for (const e of graph.edges) {
+    if (e.kind !== 'pivot') continue;
+    if (!visibleIds.has(e.target)) continue;
+    const child = visibleNodes.find((n) => n.id === e.target);
+    if (!child) continue;
+    const key = `${e.source}::${e.connector_name ?? 'unknown'}`;
+    const arr = childrenBySource.get(key) ?? [];
+    arr.push(child);
+    childrenBySource.set(key, arr);
+  }
 
-  // pivot-kind edges (source → target) and the connector that produced them
-  const pivotParent = new Map<string, string>();           // child → parent
-  const pivotConnector = new Map<string, string | null>(); // child → connector
-  const children = new Map<string, string[]>();            // parent → [child]
-  const ownership = new Map<string, string[]>();           // entity → [seedDP]
+  const clusters = new Map<string, ClusterInfo>();
+  const hiddenByCluster = new Set<string>();
+  for (const [key, children] of childrenBySource.entries()) {
+    if (children.length < CLUSTER_THRESHOLD) continue;
+    if (opts.expandedClusters.has(key)) continue;
+    const [sourceId, connectorName] = key.split('::');
+    const info: ClusterInfo = {
+      key,
+      connectorName: connectorName || 'inconnu',
+      sourceDatapointId: sourceId,
+      count: children.length,
+      childIds: children.map((c) => c.id),
+      representativeType: children[0].data_type ?? 'other',
+    };
+    clusters.set(key, info);
+    for (const c of children) hiddenByCluster.add(c.id);
+  }
+
+  // Dagre graph
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: 'TB', nodesep: NODE_SEP, ranksep: RANK_SEP, marginx: 60, marginy: 40 });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  for (const n of visibleNodes) {
+    if (n.kind === 'datapoint' && hiddenByCluster.has(n.id)) continue;
+    g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  }
+  for (const info of clusters.values()) {
+    g.setNode(info.key, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  }
+
+  // Edges: pivot only, no `owns`
+  const layoutEdges: Edge[] = [];
 
   for (const e of graph.edges) {
-    if (e.kind === 'pivot') {
-      pivotParent.set(e.target, e.source);
-      pivotConnector.set(e.target, e.connector_name ?? null);
-      (children.get(e.source) ?? children.set(e.source, []).get(e.source)!).push(e.target);
-    } else if (e.kind === 'owns') {
-      (ownership.get(e.source) ?? ownership.set(e.source, []).get(e.source)!).push(e.target);
-    }
-  }
+    if (e.kind !== 'pivot') continue;
 
-  // Apply the filter (hide everything that fails)
-  const isVisible = (id: string): boolean => {
-    const n = byId.get(id);
-    if (!n) return false;
-    if (!filter) return true;
-    return filter(n);
-  };
+    const sourceHidden = hiddenByCluster.has(e.source);
+    const targetHidden = hiddenByCluster.has(e.target);
 
-  // ── Build clusters ──
-  // For each parent, look at its pivot children. Group them by connector.
-  // If a group has >= CLUSTER_THRESHOLD visible members, it becomes a cluster.
-  const clusters = new Map<string, ClusterInfo>();
-  const hiddenClusterIds = new Set<string>();   // ids represented by a cluster (not drawn as DP)
+    if (targetHidden || sourceHidden) continue;
+    if (!visibleIds.has(e.source) || !visibleIds.has(e.target)) continue;
 
-  for (const [parentId, childIds] of children.entries()) {
-    const visibleChildren = childIds.filter(isVisible);
-    // Group by connector
-    const groupsByConnector = new Map<string, string[]>();
-    for (const cid of visibleChildren) {
-      const conn = pivotConnector.get(cid) ?? 'autre';
-      (groupsByConnector.get(conn) ?? groupsByConnector.set(conn, []).get(conn)!).push(cid);
-    }
-    for (const [conn, ids] of groupsByConnector) {
-      if (ids.length < CLUSTER_THRESHOLD) continue;
-      const key = `cluster:${parentId}:${conn}`;
-      const validated = ids.reduce((acc, id) => {
-        const n = byId.get(id);
-        return acc + (n?.status === 'validated' ? 1 : 0);
-      }, 0);
-      clusters.set(key, {
-        key,
-        connectorName: conn,
-        sourceDatapointId: parentId,
-        count: ids.length,
-        validated,
-        datapointIds: ids,
-      });
-      // If not expanded, hide the individual nodes
-      if (!expandedClusters.has(key)) {
-        for (const id of ids) hiddenClusterIds.add(id);
-      }
-    }
-  }
+    g.setEdge(e.source, e.target);
 
-  // ── Place nodes ──
-  const positions = new Map<string, { x: number; y: number }>();
-  const entities = graph.nodes.filter((n) => n.kind === 'entity');
-  entities.forEach((e, idx) => {
-    const offset = (idx - (entities.length - 1) / 2) * 400;
-    positions.set(e.id, { x: offset, y: ENTITY_Y });
-  });
-
-  // Seed datapoints: those without a pivotParent
-  const seeds: string[] = [];
-  for (const n of graph.nodes) {
-    if (n.kind === 'datapoint' && !pivotParent.has(n.id) && isVisible(n.id)) {
-      seeds.push(n.id);
-    }
-  }
-  const seedSpread = Math.max(1, seeds.length);
-  seeds.forEach((id, idx) => {
-    const x = (idx - (seedSpread - 1) / 2) * MIN_H_SPACING;
-    positions.set(id, { x, y: FIRST_ROW_Y });
-  });
-
-  // BFS — place non-clustered children below their parent
-  const queue: Array<{ id: string; depth: number }> =
-    seeds.map((id) => ({ id, depth: 1 }));
-  let head = 0;
-  while (head < queue.length) {
-    const { id: parentId, depth } = queue[head++];
-    const parentPos = positions.get(parentId) ?? { x: 0, y: FIRST_ROW_Y };
-
-    // Build the list of "visual children" of parentId:
-    //   * clusters that group some of its kids
-    //   * individual visible kids that aren't inside a hidden cluster
-    const allKids = children.get(parentId) ?? [];
-    const clusterKidsByKey = new Map<string, string[]>();
-    const individuals: string[] = [];
-    for (const cid of allKids) {
-      if (!isVisible(cid)) continue;
-      const conn = pivotConnector.get(cid) ?? 'autre';
-      const key = `cluster:${parentId}:${conn}`;
-      if (clusters.has(key)) {
-        (clusterKidsByKey.get(key) ?? clusterKidsByKey.set(key, []).get(key)!).push(cid);
-      } else {
-        individuals.push(cid);
-      }
-    }
-    const visualItems: Array<{ type: 'node'; id: string } | { type: 'cluster'; key: string }> = [
-      ...[...clusterKidsByKey.keys()].map((k) => ({ type: 'cluster' as const, key: k })),
-      ...individuals.map((id) => ({ type: 'node' as const, id })),
-    ];
-    if (visualItems.length === 0) continue;
-
-    visualItems.forEach((item, idx) => {
-      const x = parentPos.x + (idx - (visualItems.length - 1) / 2) * MIN_H_SPACING;
-      const y = FIRST_ROW_Y + depth * ROW_SPACING;
-      if (item.type === 'node') {
-        positions.set(item.id, { x, y });
-        queue.push({ id: item.id, depth: depth + 1 });
-      } else {
-        positions.set(item.key, { x, y });
-        // If the cluster is expanded, lay out its kids right below it.
-        if (expandedClusters.has(item.key)) {
-          const kids = clusters.get(item.key)?.datapointIds ?? [];
-          kids.forEach((kid, kidIdx) => {
-            const kx = x + (kidIdx - (kids.length - 1) / 2) * Math.max(160, MIN_H_SPACING - 60);
-            const ky = y + ROW_SPACING;
-            positions.set(kid, { x: kx, y: ky });
-            queue.push({ id: kid, depth: depth + 2 });
-          });
-        }
-      }
+    layoutEdges.push({
+      id: `e-${e.source}-${e.target}`,
+      source: e.source,
+      target: e.target,
+      type: 'smoothstep',
+      animated: false,
+      style: { stroke: 'var(--edge-pivot)', strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--edge-pivot)', width: 14, height: 14 },
+      data: { connectorName: e.connector_name },
     });
   }
 
-  // ── Build react-flow nodes ──
-  const nodes: Node[] = [];
+  // We DO need synthetic edges from entity → seed datapoints, even though
+  // we hide the kind='owns' ones, otherwise seeds float. So we add them
+  // as faint background edges.
+  for (const e of graph.edges) {
+    if (e.kind !== 'owns') continue;
+    if (!visibleIds.has(e.source) || !visibleIds.has(e.target)) continue;
+    if (hiddenByCluster.has(e.target)) continue;
+    g.setEdge(e.source, e.target);
+    layoutEdges.push({
+      id: `o-${e.source}-${e.target}`,
+      source: e.source,
+      target: e.target,
+      type: 'smoothstep',
+      style: { stroke: 'var(--edge-owns)', strokeWidth: 1, opacity: 0.35 },
+      markerEnd: undefined,
+    });
+  }
 
-  for (const n of graph.nodes) {
-    if (n.kind === 'entity') {
-      const pos = positions.get(n.id) ?? { x: 0, y: 0 };
-      nodes.push({
-        id: n.id,
-        type: 'entity',
-        position: pos,
-        data: { label: n.label, role: 'target' },
-        draggable: true,
-      });
-      continue;
-    }
-    if (!isVisible(n.id)) continue;
-    if (hiddenClusterIds.has(n.id)) continue;
-    const pos = positions.get(n.id);
+  // Synthetic cluster edges
+  for (const info of clusters.values()) {
+    g.setEdge(info.sourceDatapointId, info.key);
+    layoutEdges.push({
+      id: `c-${info.sourceDatapointId}-${info.key}`,
+      source: info.sourceDatapointId,
+      target: info.key,
+      type: 'smoothstep',
+      style: { stroke: 'var(--edge-cluster)', strokeWidth: 2, strokeDasharray: '6 4' },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--edge-cluster)', width: 14, height: 14 },
+    });
+  }
+
+  dagre.layout(g);
+
+  const reactFlowNodes: Node[] = [];
+
+  for (const n of visibleNodes) {
+    if (n.kind !== 'entity') continue;
+    const pos = g.node(n.id);
     if (!pos) continue;
-    nodes.push({
+    reactFlowNodes.push({
+      id: n.id,
+      type: 'entity',
+      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+      data: { label: n.label, role: 'target' },
+      draggable: true,
+    });
+  }
+
+  for (const n of visibleNodes) {
+    if (n.kind !== 'datapoint') continue;
+    if (hiddenByCluster.has(n.id)) continue;
+    const pos = g.node(n.id);
+    if (!pos) continue;
+    reactFlowNodes.push({
       id: n.id,
       type: 'datapoint',
-      position: pos,
+      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
       data: {
         label: n.label,
         dataType: n.data_type!,
         status: n.status!,
         confidence: n.confidence ?? null,
-        pivoting: pivotingIds.has(n.id),
+        pivoting: opts.pivotingIds.has(n.id),
         depth: n.pivot_depth,
-        onOpen: () => onOpenDatapoint(n.id),
-        selected: selectedId === n.id,
+        onOpen: () => opts.onOpenDatapoint(n.id),
+        selected: opts.selectedId === n.id,
       },
       draggable: true,
     });
   }
 
-  for (const [key, info] of clusters.entries()) {
-    const pos = positions.get(key) ?? { x: 0, y: FIRST_ROW_Y };
-    nodes.push({
-      id: key,
-      type: 'cluster',
-      position: pos,
-      data: {
-        connectorName: info.connectorName,
-        count: info.count,
-        validated: info.validated,
-        expanded: expandedClusters.has(key),
-        onToggle: () => onToggleCluster(key),
-      },
-      draggable: true,
-    });
-  }
-
-  // ── Build edges ──
-  const edges: Edge[] = [];
-  const nodeIds = new Set(nodes.map((n) => n.id));
-
-  for (const e of graph.edges) {
-    if (e.kind === 'owns') {
-      // Only the entity-to-seed edge is interesting to draw
-      if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) continue;
-      if (pivotParent.has(e.target)) continue;  // only seed links
-      edges.push(_edge(e.id, e.source, e.target, 'owns'));
-      continue;
-    }
-    // pivot edge
-    // If the target is hidden by a cluster, re-route: entity→cluster
-    if (hiddenClusterIds.has(e.target)) {
-      const conn = pivotConnector.get(e.target) ?? 'autre';
-      const clusterKey = `cluster:${e.source}:${conn}`;
-      if (!nodeIds.has(clusterKey)) continue;
-      const syntheticId = `pv-cl-${e.source}-${clusterKey}`;
-      // dedup
-      if (!edges.some((x) => x.id === syntheticId)) {
-        edges.push(_edge(syntheticId, e.source, clusterKey, 'pivot', conn));
-      }
-      continue;
-    }
-    if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) continue;
-    edges.push(_edge(e.id, e.source, e.target, 'pivot', e.connector_name));
-  }
-
-  // Also: edges from each cluster to its expanded kids
   for (const info of clusters.values()) {
-    if (!expandedClusters.has(info.key)) continue;
-    for (const kid of info.datapointIds) {
-      if (!nodeIds.has(kid)) continue;
-      edges.push(_edge(`cl-kid-${info.key}-${kid}`, info.key, kid, 'pivot'));
-    }
+    const pos = g.node(info.key);
+    if (!pos) continue;
+    reactFlowNodes.push({
+      id: info.key,
+      type: 'cluster',
+      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+      data: {
+        count: info.count,
+        connectorName: info.connectorName,
+        dataType: info.representativeType,
+        onToggle: () => opts.onToggleCluster(info.key),
+      },
+      draggable: true,
+    });
   }
 
-  return { nodes, edges, clusters, hiddenClusterIds };
-}
-
-function _edge(
-  id: string, source: string, target: string,
-  kind: 'pivot' | 'owns', label?: string | null,
-): Edge {
   return {
-    id,
-    source,
-    target,
-    type: 'smoothstep',
-    animated: false,
-    label: kind === 'pivot' ? label ?? undefined : undefined,
-    style: {
-      stroke: kind === 'pivot' ? 'var(--gold)' : 'rgba(45,74,43,0.35)',
-      strokeWidth: kind === 'pivot' ? 1.5 : 1,
-    },
-    labelStyle: {
-      fontFamily: 'var(--font-display)',
-      fontSize: 10,
-      letterSpacing: '0.14em',
-      textTransform: 'uppercase',
-      fill: 'var(--gold-deep)',
-    },
-    labelBgStyle: {
-      fill: 'var(--cream)',
-      fillOpacity: 0.9,
-    },
+    nodes: reactFlowNodes,
+    edges: layoutEdges,
+    clusters,
+    hiddenClusterIds: hiddenByCluster,
   };
 }
