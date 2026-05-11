@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
 from src.deps import CurrentUser, DbSession
@@ -112,6 +112,8 @@ async def set_my_key(
 @router.delete(
     "/{connector_name}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    response_model=None,
 )
 async def delete_my_key(
     connector_name: str,
