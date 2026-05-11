@@ -211,20 +211,65 @@ def _maybe_str(v: Any) -> str | None:
     return v.strip() if isinstance(v, str) and v.strip() else None
 
 
+def _looks_like_real_name(name: str, handle: str | None, host: str) -> bool:
+    """Heuristic: does this display_name look like a real-name candidate?
+
+    Returns False when the display_name is suspicious:
+      - empty / too short / too long
+      - same as the handle (just the pseudo recopied)
+      - contains the host name (page title leak: "GitHub — 6ssay")
+      - looks like an error message
+    Returns True when the display_name looks like a meaningful name
+    (or pseudonym) worth keeping for investigator review.
+    """
+    n = name.strip()
+    if len(n) < 2 or len(n) > 80:
+        return False
+
+    # Same as the handle? Pure noise.
+    if handle and n.lower() == handle.lower():
+        return False
+
+    lower = n.lower()
+
+    # Host leak — "Twitter — 6ssay", "GitHub: 6ssay"
+    host_root = host.split(".")[0].lower() if host else ""
+    if host_root and host_root in lower:
+        return False
+
+    # Common page-error fragments
+    BAD_FRAGMENTS = (
+        "404", "not found", "page introuvable",
+        "error", "erreur", "forbidden", "access denied",
+        "log in", "se connecter", "sign in", "sign up",
+        "loading", "chargement", "please wait",
+    )
+    for frag in BAD_FRAGMENTS:
+        if frag in lower:
+            return False
+
+    return True
+
+
 def _profile_to_findings(profile: ExtractedProfile, url: str) -> list[Finding]:
     out: list[Finding] = []
     plat = profile.platform or "generic"
     host = _host(url)
     src = profile.platform or host
 
-    if profile.display_name:
+    # NAME extraction is the trickiest case. A site's "display_name" can be:
+    #   1. The user's real or chosen name (what we want)              → emit NAME
+    #   2. The same as the handle (e.g. SoundCloud "6ssay")           → skip
+    #   3. A page title artefact ("Twitter — 6ssay", "404 Not Found") → skip
+    # We apply heuristics to keep only case 1.
+    if profile.display_name and _looks_like_real_name(profile.display_name, profile.handle, host):
         out.append(Finding(
             data_type=DataType.NAME,
             value=profile.display_name,
-            confidence=0.8 if plat != "generic" else 0.65,
+            confidence=0.78 if plat != "generic" else 0.55,
             source_url=url,
             extracted_at=now_utc(),
-            notes=f"Nom affiché sur {src}",
+            notes=f"Nom déclaré sur {src} (à valider — peut être un pseudonyme)",
             raw={"extractor": plat, "handle": profile.handle},
         ))
 

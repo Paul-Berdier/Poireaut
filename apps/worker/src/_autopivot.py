@@ -40,9 +40,11 @@ HARD_TOTAL_AUTOCREATED_CAP = 500          # per investigation, lifetime
 HARD_RECENT_AUTOCREATED_CAP = 200         # per investigation, last 60 minutes
 HARD_AUTOCREATED_LOOKBACK = timedelta(minutes=60)
 
-# Pivot-eligible data types. We deliberately exclude OTHER (free-form, often
-# bios or stats — pivoting them is meaningless) and NAME (which has dozens
-# of false positives in OSINT).
+# Pivot-eligible data types. We deliberately exclude:
+#   - OTHER (free-form, often bios — pivoting them is meaningless)
+#   - NAME (high false-positive rate; pivoting "Jean Dupont" is noisy)
+#   - PHOTO (reverse-search produces 3 utility URLs that aren't real findings;
+#            the panel offers them as buttons instead, see DatapointPanel)
 PIVOTABLE_TYPES: frozenset[DataType] = frozenset({
     DataType.EMAIL,
     DataType.USERNAME,
@@ -51,7 +53,6 @@ PIVOTABLE_TYPES: frozenset[DataType] = frozenset({
     DataType.ACCOUNT,
     DataType.DOMAIN,
     DataType.IP,
-    DataType.PHOTO,
 })
 
 

@@ -51,21 +51,44 @@ export default function DatapointPanel({ datapoint, isPivoting, onChange, onClos
       </div>
 
       {isPhoto && (
-        <a
-          href={datapoint.value}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="dp-panel__photo-wrap"
-          title="Ouvrir l'image en grand"
-        >
-          <img
-            src={datapoint.value}
-            alt=""
-            className="dp-panel__photo"
-            referrerPolicy="no-referrer"
-            loading="lazy"
-          />
-        </a>
+        <>
+          <a
+            href={datapoint.value}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="dp-panel__photo-wrap"
+            title="Ouvrir l'image en grand"
+          >
+            <img
+              src={datapoint.value}
+              alt=""
+              className="dp-panel__photo"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+            />
+          </a>
+
+          <div className="reverse-search">
+            <div className="reverse-search__label">🔎 Recherche inverse</div>
+            <div className="reverse-search__row">
+              <a
+                href={`https://lens.google.com/uploadbyurl?url=${encodeURIComponent(datapoint.value)}`}
+                target="_blank" rel="noreferrer noopener"
+                className="reverse-search__btn"
+              >Google Lens</a>
+              <a
+                href={`https://yandex.com/images/search?rpt=imageview&url=${encodeURIComponent(datapoint.value)}`}
+                target="_blank" rel="noreferrer noopener"
+                className="reverse-search__btn"
+              >Yandex</a>
+              <a
+                href={`https://tineye.com/search/?url=${encodeURIComponent(datapoint.value)}`}
+                target="_blank" rel="noreferrer noopener"
+                className="reverse-search__btn"
+              >TinEye</a>
+            </div>
+          </div>
+        </>
       )}
 
       <h3 className="dp-panel__value" title={datapoint.value}>

@@ -25,7 +25,9 @@ const NODE_WIDTH = 240;
 const NODE_HEIGHT = 70;
 const RANK_SEP = 90;
 const NODE_SEP = 50;
-const CLUSTER_THRESHOLD = 5;
+// Group siblings (same parent + same connector) when ≥ 3 — keeps the
+// canvas readable when an enquête grows past ~20 nodes.
+const CLUSTER_THRESHOLD = 3;
 
 // ── Types ───────────────────────────────────────────
 

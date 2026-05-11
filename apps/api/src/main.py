@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Poireaut API",
     description="OSINT investigation platform — pivot, verify, weave the web.",
-    version="0.9.2",
+    version="0.9.3",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,

@@ -6,6 +6,15 @@ URL so it's immediately useful: the UI renders it as a clickable link,
 the profile_scraper can accept it as input, and the user sees a single
 node per platform instead of two.
 
+Site filtering:
+  Maigret bundles ~2500 sites, including a long tail of regional forums
+  (mainly .ru / .pl / .ua / .by) that produce massive noise for
+  French-speaking investigators. We filter the results by TLD: only
+  globally-recognized platforms + Western European/American TLDs are
+  kept. The full Maigret search still runs (faster than re-implementing
+  site filtering inside Maigret), but we drop the irrelevant hits
+  before returning findings.
+
 Input : DataType.USERNAME
 Output: DataType.ACCOUNT (one per matched site)
 """
@@ -14,12 +23,91 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any
+from urllib.parse import urlparse
 
+from src.connectors._signals import build
 from src.connectors.base import BaseConnector, ConnectorResult, Finding, now_utc
 from src.connectors.registry import register
 from src.db.types import ConnectorCategory, DataType, HealthStatus
 
 logger = logging.getLogger(__name__)
+
+
+# ── TLDs we *keep* — globally relevant for French/Western investigations.
+# Adding more is one-line. Removing is one-line.
+ALLOWED_TLDS: frozenset[str] = frozenset({
+    "com", "net", "org", "io", "co", "app", "ai", "dev", "me", "tv",
+    # European
+    "fr", "be", "ch", "lu", "ca",
+    "de", "at", "nl",
+    "uk", "ie",
+    "es", "pt", "it",
+    # Other major Western
+    "us", "edu", "gov", "mil",
+    "au", "nz",
+    # Latin Am
+    "br", "mx", "ar",
+    # Major creator platforms / niche but high-signal
+    "gg", "fm", "tv",
+})
+
+# ── TLDs we *block* — high-noise regional, mostly Slavic/Asian forums.
+# A site appearing in BLOCKED_TLDS overrides ALLOWED_TLDS so a .ru.com
+# trick can't sneak through.
+BLOCKED_TLDS: frozenset[str] = frozenset({
+    "ru", "su", "by", "ua", "kz", "uz",
+    "pl", "cz", "sk", "hu", "ro", "bg",
+    "rs", "hr", "ba", "mk", "si",
+    "tr", "ge", "az",
+    "cn", "jp", "kr", "vn", "th", "tw", "hk",
+    "ir", "iq", "sa", "ae",
+})
+
+# ── Sites we always keep regardless of TLD (high-value globally).
+# Maigret's `site_name` (matched case-insensitively).
+ALWAYS_KEEP_SITES: frozenset[str] = frozenset(s.lower() for s in {
+    "GitHub", "GitLab", "Bitbucket",
+    "Twitter", "X", "Mastodon",
+    "Instagram", "Facebook", "LinkedIn",
+    "Reddit", "Snapchat", "Threads",
+    "TikTok", "YouTube", "Vimeo",
+    "Discord", "Telegram", "Signal", "WhatsApp",
+    "Steam", "Twitch", "PlayStation Network", "Xbox",
+    "SoundCloud", "Spotify", "Bandcamp", "Last.fm", "Mixcloud",
+    "Patreon", "Substack", "Medium", "Ghost",
+    "DeviantArt", "ArtStation", "Behance", "Dribbble",
+    "Stack Overflow", "Codepen", "Replit",
+    "Pinterest", "Flickr", "Imgur", "500px",
+    "PayPal", "Venmo", "Cash App",
+    "Strava", "Goodreads", "MyAnimeList", "Letterboxd",
+    "Roblox", "Minecraft", "Wikipedia",
+})
+
+
+def _is_site_allowed(site_name: str, url: str) -> tuple[bool, str]:
+    """Decide whether to keep a Maigret hit.
+
+    Returns (keep, reason) where reason is a short explanation used in
+    debug logging and the raw_output for transparency.
+    """
+    if site_name.lower() in ALWAYS_KEEP_SITES:
+        return True, "site whitelist"
+
+    try:
+        host = urlparse(url).netloc.lower().lstrip("www.")
+    except Exception:  # noqa: BLE001
+        return False, "malformed url"
+    # Extract last TLD segment (handles co.uk → uk)
+    parts = host.split(".")
+    if len(parts) < 2:
+        return False, f"no TLD in {host}"
+    tld = parts[-1]
+
+    if tld in BLOCKED_TLDS:
+        return False, f".{tld} blocked"
+    if tld in ALLOWED_TLDS:
+        return True, f".{tld} allowed"
+    return False, f".{tld} not in allowlist"
 
 
 @register
@@ -29,8 +117,9 @@ class MaigretConnector(BaseConnector):
     category = ConnectorCategory.USERNAME
     description = (
         "Scans ~2500 public sites to find where a username has registered a "
-        "profile. No authentication, no notifications. Each match produces "
-        "one ACCOUNT finding whose value is the full profile URL."
+        "profile. No authentication, no notifications. Results are filtered "
+        "to globally-relevant platforms (we skip regional .ru/.pl/etc. "
+        "forums that mostly produce noise for French investigations)."
     )
     homepage_url = "https://github.com/soxoj/maigret"
     input_types = {DataType.USERNAME}
@@ -76,6 +165,7 @@ class MaigretConnector(BaseConnector):
 
         findings: list[Finding] = []
         seen_urls: set[str] = set()
+        filtered_out: dict[str, int] = {}    # reason → count, for debug raw
 
         for site_name, info in (results or {}).items():
             if not isinstance(info, dict):
@@ -92,16 +182,36 @@ class MaigretConnector(BaseConnector):
                 continue
             seen_urls.add(url)
 
-            # Maigret already validated via its own HTTP check — the url is
-            # reachable and content-matches. We use a high confidence prior.
+            keep, reason = _is_site_allowed(site_name, url)
+            if not keep:
+                filtered_out[reason] = filtered_out.get(reason, 0) + 1
+                continue
+
+            # Confidence: high prior because Maigret has already content-matched.
+            # Boosted for the well-known platforms (whitelist), lighter for
+            # sites we don't recognize but kept by TLD.
+            is_major = site_name.lower() in ALWAYS_KEEP_SITES
+            cb = build(
+                "maigret.content_match",
+                0.90 if is_major else 0.78,
+                f"Maigret a confirmé un profil sur {site_name}",
+            )
+            if is_major:
+                cb.add(
+                    "maigret.major_platform", 0.05,
+                    "Plateforme grand public (whitelist)",
+                )
+
             findings.append(
                 Finding(
                     data_type=DataType.ACCOUNT,
-                    value=url,                 # ← full URL, human-readable
-                    confidence=0.88,
+                    value=url,
+                    confidence=round(cb.compose(), 2),
                     source_url=url,
                     extracted_at=now_utc(),
-                    raw={"site": site_name, "url": url},
+                    raw={
+                        "site": site_name, "url": url, "_signals": cb.to_raw(),
+                    },
                     notes=f"Profil trouvé sur {site_name}",
                 )
             )
@@ -110,7 +220,9 @@ class MaigretConnector(BaseConnector):
             findings=findings,
             raw_output={
                 "sites_scanned": len(results or {}),
-                "matches": len(findings),
+                "matches_raw": len(seen_urls),
+                "matches_kept": len(findings),
+                "filtered_out": filtered_out,
             },
         )
 
