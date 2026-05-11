@@ -161,7 +161,7 @@ async def test_my_key(
 
     row.last_test_at = datetime.now(timezone.utc)
     row.last_test_ok = ok
-    await db.commit()
+    # get_db() commits at end of request — no explicit commit needed.
 
     return ApiKeyTestResult(connector_name=connector_name, ok=ok, detail=detail)
 

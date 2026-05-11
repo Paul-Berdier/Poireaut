@@ -3,6 +3,11 @@
 Revision ID: 0004_api_keys
 Revises: 0003_autopivot
 Create Date: 2026-05-11
+
+We follow the same conventions as 0001_initial:
+  - UUIDs declared as postgresql.UUID(as_uuid=True), no server_default
+    (the Python model generates them via uuid.uuid4).
+  - No reliance on pgcrypto / gen_random_uuid().
 """
 from __future__ import annotations
 
@@ -10,6 +15,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0004_api_keys"
 down_revision: Union[str, None] = "0003_autopivot"
@@ -20,20 +26,27 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.create_table(
         "api_keys",
-        sa.Column("id", sa.UUID(as_uuid=True), primary_key=True,
-                  server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", sa.UUID(as_uuid=True),
-                  sa.ForeignKey("users.id", ondelete="CASCADE"),
-                  nullable=False, index=True),
+        sa.Column(
+            "id", postgresql.UUID(as_uuid=True), primary_key=True,
+        ),
+        sa.Column(
+            "user_id", postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("connector_name", sa.String(64), nullable=False),
         sa.Column("encrypted_value", sa.String(2048), nullable=False),
         sa.Column("masked_preview", sa.String(32), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True),
-                  server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True),
+            server_default=sa.func.now(), nullable=False,
+        ),
         sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_test_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_test_ok", sa.Boolean(), nullable=True),
-        sa.UniqueConstraint("user_id", "connector_name", name="uq_user_connector"),
+        sa.UniqueConstraint(
+            "user_id", "connector_name", name="uq_user_connector",
+        ),
     )
     op.create_index("ix_api_keys_user_id", "api_keys", ["user_id"])
 

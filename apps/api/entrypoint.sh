@@ -19,7 +19,14 @@ if [ -n "$PORT" ]; then
 fi
 
 echo "⟡ Running database migrations"
-alembic upgrade head
+if ! alembic upgrade head; then
+    echo ""
+    echo "✗ MIGRATION FAILED — the container will exit and Railway's"
+    echo "  healthcheck will fail. Check the traceback above for the"
+    echo "  specific Alembic / Postgres error."
+    echo ""
+    exit 1
+fi
 echo "⟡ Migrations OK"
 
 echo "⟡ Handing off to: $*"
