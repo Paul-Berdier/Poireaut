@@ -147,10 +147,28 @@ class MaigretConnector(BaseConnector):
         except Exception as exc:  # noqa: BLE001
             return ConnectorResult(error=f"Failed to load Maigret site DB: {exc}")
 
+        # Load the runtime blacklist from DB. If the table isn't ready
+        # yet (fresh deploy, periodic task hasn't run) we get an empty
+        # set and Maigret falls back to its full site list.
+        disabled_sites = await _load_disabled_sites_safe()
+        if disabled_sites:
+            logger.info(
+                "Maigret: %d sites in DB blacklist will be skipped",
+                len(disabled_sites),
+            )
+
+        # Filter the site dict BEFORE passing it to Maigret. Maigret's
+        # own `disabled_sites_set` doesn't exist in all versions; doing
+        # the filter ourselves works on every Maigret release.
+        active_sites = {
+            name: site for name, site in db.sites_dict.items()
+            if name not in disabled_sites
+        }
+
         try:
             results: dict[str, Any] = await maigret_run(
                 username=username,
-                site_dict=db.sites_dict,
+                site_dict=active_sites,
                 logger=logger,
                 timeout=15,
                 id_type="username",
@@ -232,3 +250,22 @@ class MaigretConnector(BaseConnector):
             return HealthStatus.OK
         except ImportError:
             return HealthStatus.DEAD
+
+
+async def _load_disabled_sites_safe() -> set[str]:
+    """Read the maigret_site_health blacklist from DB. Returns an empty
+    set if the table doesn't exist yet (fresh deploy) or any other error
+    so we never block Maigret's normal operation.
+    """
+    try:
+        from src.tasks import _get_session
+        from src._maigret_health import load_disabled_sites
+    except ImportError:
+        return set()
+    try:
+        Session = _get_session()
+        async with Session() as db:
+            return await load_disabled_sites(db)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not load Maigret blacklist (will use full list): %s", exc)
+        return set()

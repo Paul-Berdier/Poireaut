@@ -9,6 +9,7 @@ from src.models.connector import Connector, ConnectorRun
 from src.models.datapoint import DataPoint
 from src.models.entity import Entity
 from src.models.investigation import Investigation
+from src.models.maigret_site_health import MaigretSiteHealth
 from src.models.user import User
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "Connector",
     "ConnectorRun",
     "ApiKey",
+    "MaigretSiteHealth",
 ]

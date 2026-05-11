@@ -33,6 +33,7 @@ import QuickAddBar from './QuickAddBar';
 import FicheView from './FicheView';
 import SettingsPanel from './SettingsPanel';
 import SynthesisModal from './SynthesisModal';
+import GraphLegend from './GraphLegend';
 
 type WsStatus = 'connecting' | 'open' | 'closed';
 type ViewTab = 'web' | 'fiche';
@@ -361,7 +362,7 @@ export default function InvestigationView({ investigationId }: Props) {
                     <Background color="var(--gold)" gap={24} size={1.2} style={{ opacity: 0.35 }} />
                     <Controls position="bottom-right" showInteractive={false} className="rf-controls" />
                     <MiniMap
-                      position="bottom-left"
+                      position="top-right"
                       pannable zoomable
                       style={{
                         background: 'var(--cream-deep)',
@@ -376,6 +377,7 @@ export default function InvestigationView({ investigationId }: Props) {
                       }
                     />
                   </ReactFlow>
+                  <GraphLegend />
                 </ReactFlowProvider>
               )}
             </div>

@@ -38,7 +38,7 @@ function SystemCheck({ state }: { state: HealthState }) {
       ? 'sys-check__dot sys-check__dot--ko'
       : 'sys-check__dot';
   return (
-    <aside className="sys-check" aria-live="polite">
+    <aside className="sys-check" aria-live="polite" data-state={state}>
       <span className={dotClass} />
       <div>
         <div className="sys-check__label">Diagnostic</div>

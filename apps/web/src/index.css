@@ -2142,3 +2142,194 @@ button { font-family: var(--font-body); cursor: pointer; }
   border-color: var(--gold);
   background: rgba(184, 160, 92, 0.1);
 }
+
+/* ═══════════════════════════════════════════════
+   v0.9.4 — Color coding by type + depth
+   ═══════════════════════════════════════════════ */
+
+/* ── Type tokens — soft pastels so the canvas stays calm ── */
+:root {
+  --type-email-bg:    #fde6e6;
+  --type-email-fg:    #9a2a2a;
+  --type-username-bg: #e6efff;
+  --type-username-fg: #1d3f7a;
+  --type-account-bg:  #e2f0f7;
+  --type-account-fg:  #1e4f6e;
+  --type-name-bg:     #e9e3f8;
+  --type-name-fg:     #4a2f7a;
+  --type-photo-bg:    #f7e3f0;
+  --type-photo-fg:    #6e1e55;
+  --type-address-bg:  #fff2d6;
+  --type-address-fg:  #7a5a1d;
+  --type-phone-bg:    #fef3d6;
+  --type-phone-fg:    #6e571d;
+  --type-domain-bg:   #e0f4e6;
+  --type-domain-fg:   #1d5a30;
+  --type-ip-bg:       #e0f0f4;
+  --type-ip-fg:       #1d4a5a;
+  --type-url-bg:      #f0ecdb;
+  --type-url-fg:      #5a4f1d;
+  --type-employer-bg: #f4e6dc;
+  --type-employer-fg: #6e4520;
+  --type-other-bg:    #efefef;
+  --type-other-fg:    #555555;
+}
+
+/* Apply backgrounds to each datapoint type */
+.dp-node.dp-node--type-email    { background-color: var(--type-email-bg); }
+.dp-node.dp-node--type-username { background-color: var(--type-username-bg); }
+.dp-node.dp-node--type-account  { background-color: var(--type-account-bg); }
+.dp-node.dp-node--type-name     { background-color: var(--type-name-bg); }
+.dp-node.dp-node--type-photo    { background-color: var(--type-photo-bg); }
+.dp-node.dp-node--type-address  { background-color: var(--type-address-bg); }
+.dp-node.dp-node--type-location { background-color: var(--type-address-bg); }
+.dp-node.dp-node--type-phone    { background-color: var(--type-phone-bg); }
+.dp-node.dp-node--type-domain   { background-color: var(--type-domain-bg); }
+.dp-node.dp-node--type-ip       { background-color: var(--type-ip-bg); }
+.dp-node.dp-node--type-url      { background-color: var(--type-url-bg); }
+.dp-node.dp-node--type-employer { background-color: var(--type-employer-bg); }
+.dp-node.dp-node--type-school   { background-color: var(--type-employer-bg); }
+.dp-node.dp-node--type-other    { background-color: var(--type-other-bg); }
+.dp-node.dp-node--type-family   { background-color: var(--type-name-bg); }
+.dp-node.dp-node--type-date_of_birth { background-color: var(--type-phone-bg); }
+
+/* Type-colored value text for higher contrast */
+.dp-node.dp-node--type-email    .dp-node__type { color: var(--type-email-fg); }
+.dp-node.dp-node--type-username .dp-node__type { color: var(--type-username-fg); }
+.dp-node.dp-node--type-account  .dp-node__type { color: var(--type-account-fg); }
+.dp-node.dp-node--type-name     .dp-node__type { color: var(--type-name-fg); }
+.dp-node.dp-node--type-photo    .dp-node__type { color: var(--type-photo-fg); }
+.dp-node.dp-node--type-address  .dp-node__type { color: var(--type-address-fg); }
+.dp-node.dp-node--type-phone    .dp-node__type { color: var(--type-phone-fg); }
+.dp-node.dp-node--type-domain   .dp-node__type { color: var(--type-domain-fg); }
+.dp-node.dp-node--type-ip       .dp-node__type { color: var(--type-ip-fg); }
+.dp-node.dp-node--type-url      .dp-node__type { color: var(--type-url-fg); }
+
+/* ── Depth borders — concentric reveal of how deep we've drilled ── */
+:root {
+  --depth-0: #2D4A2B;  /* forest — seeds */
+  --depth-1: #5e8757;  /* light green */
+  --depth-2: #B8A05C;  /* gold */
+  --depth-3: #c97a3e;  /* warm orange */
+  --depth-4: #b54848;  /* deep red */
+  --depth-5: #7a3478;  /* purple */
+}
+
+.dp-node.dp-node--depth-0 { border-color: var(--depth-0); border-width: 2px; }
+.dp-node.dp-node--depth-1 { border-color: var(--depth-1); border-width: 2px; }
+.dp-node.dp-node--depth-2 { border-color: var(--depth-2); border-width: 2px; border-style: solid; }
+.dp-node.dp-node--depth-3 { border-color: var(--depth-3); border-width: 2px; border-style: solid; }
+.dp-node.dp-node--depth-4 { border-color: var(--depth-4); border-width: 2px; border-style: dashed; }
+.dp-node.dp-node--depth-5 { border-color: var(--depth-5); border-width: 2px; border-style: dashed; }
+
+/* Depth label badge takes the depth color */
+.dp-node__depth { background: var(--gold); color: var(--ink); }
+.dp-node--depth-0 .dp-node__depth { display: none; }   /* seeds don't need a "L0" badge */
+.dp-node--depth-1 .dp-node__depth { background: var(--depth-1); color: white; }
+.dp-node--depth-2 .dp-node__depth { background: var(--depth-2); color: var(--ink); }
+.dp-node--depth-3 .dp-node__depth { background: var(--depth-3); color: white; }
+.dp-node--depth-4 .dp-node__depth { background: var(--depth-4); color: white; }
+.dp-node--depth-5 .dp-node__depth { background: var(--depth-5); color: white; }
+
+/* ═══════════════════════════════════════════════
+   Legend — floating bottom-left, shows depth+type encoding
+   ═══════════════════════════════════════════════ */
+
+.graph-legend {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(241, 234, 215, 0.95);
+  border: 1px solid rgba(45, 74, 43, 0.2);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+  box-shadow: var(--shadow-sm);
+  font-size: 11px;
+  z-index: 5;
+  max-width: 260px;
+  pointer-events: auto;
+  backdrop-filter: blur(2px);
+}
+.graph-legend__title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+  margin-bottom: var(--s-2);
+}
+.graph-legend__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--s-2);
+}
+.graph-legend__section:last-child { margin-bottom: 0; }
+.graph-legend__section-label {
+  font-size: 10px;
+  color: var(--forest);
+  opacity: 0.7;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.graph-legend__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.graph-legend__chip {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+.graph-legend__ring {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--cream);
+  border: 2px solid var(--depth-0);
+}
+.graph-legend__label {
+  font-size: 11px;
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+.graph-legend__collapse {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: transparent;
+  border: none;
+  color: var(--gold-deep);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.graph-legend--collapsed {
+  padding: 6px 12px;
+}
+.graph-legend--collapsed .graph-legend__section { display: none; }
+.graph-legend--collapsed .graph-legend__title { margin-bottom: 0; }
+
+/* ═══════════════════════════════════════════════
+   Diagnostic indicator — hide when API is OK
+   ═══════════════════════════════════════════════ */
+
+.sys-check {
+  /* Auto-hide when the API is healthy. The dot stays only on issues. */
+  transition: opacity 0.3s ease;
+}
+.sys-check[data-state="ok"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.sys-check[data-state="ok"]:hover {
+  /* Hover reveals it so the user can still verify the system is OK */
+  opacity: 0.5;
+}
+

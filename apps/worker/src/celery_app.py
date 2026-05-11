@@ -41,5 +41,11 @@ celery.conf.update(
             # 04:17 UTC — once a day, off-peak and staggered off-the-hour.
             "schedule": crontab(hour="4", minute="17"),
         },
+        "maigret-site-health-daily": {
+            "task": "src.tasks.refresh_maigret_site_health",
+            # 03:42 UTC — well before the connectors healthcheck so a fresh
+            # blacklist is in place by the time investigators wake up.
+            "schedule": crontab(hour="3", minute="42"),
+        },
     },
 )

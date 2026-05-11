@@ -40,9 +40,18 @@ export interface DataPointNodeData {
 
 export function DataPointNode({ data }: { data: DataPointNodeData }) {
   const Icon = ICONS[data.dataType] ?? Circle;
+  const depth = data.depth ?? 0;
+  // Color encoding:
+  //   - background color   ← data_type (dp-node--type-email, etc.)
+  //   - border color/style ← pivot_depth (dp-node--depth-0, -1, -2, …)
+  // We cap depth at 5 in CSS — deeper still works, just shares the depth-5 style.
+  const depthClass = `dp-node--depth-${Math.min(depth, 5)}`;
+  const typeClass = `dp-node--type-${data.dataType}`;
   const classes = [
     'dp-node',
     `dp-node--${data.status}`,
+    typeClass,
+    depthClass,
     data.dataType === 'photo' ? 'dp-node--photo' : '',
     data.selected ? 'dp-node--selected' : '',
     data.pivoting ? 'dp-node--pivoting' : '',

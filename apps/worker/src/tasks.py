@@ -165,6 +165,21 @@ async def _healthcheck_all() -> dict[str, Any]:
         return {"checked": len(connectors), "status": summary, "at": now.isoformat()}
 
 
+# ─── Maigret site health refresh (daily) ────────────────────
+
+@celery.task(name="src.tasks.refresh_maigret_site_health")
+def refresh_maigret_site_health(batch_size: int = 0) -> dict[str, Any]:
+    """Probe every Maigret site against a fake username, persist results.
+
+    `batch_size=0` means "all sites" (~2500). Pass a small number for
+    smoke-testing or to dial down load during initial deployment.
+    """
+    from src._maigret_health import refresh_maigret_site_health_async
+    return asyncio.run(
+        refresh_maigret_site_health_async(_get_session(), batch_size=batch_size)
+    )
+
+
 # ─── Main pivot task ────────────────────────────────────────────
 
 @celery.task(name="src.tasks.run_connectors_for_datapoint", bind=True)
